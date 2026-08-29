@@ -1,65 +1,49 @@
 # SETUP — Cloudflare / GitHub の初期セットアップ
 
-フェーズ1のコードは Docker のローカルエミュレーションで動作する（`wrangler.jsonc` の `database_id` / KV `id` はプレースホルダ）。
-dev / production へデプロイするには、実リソースを作成して ID を差し込み、GitHub Secrets を登録する。
+## 状態
 
-## 1. Cloudflare リソースの作成
+- ✅ Cloudflare リソース作成済み（アカウント `e1bfc1ed29f5c1f17e23a9d77a3fad8a`、リージョン APAC）
+  - D1: `nqkai-dev` (`2a9d30cb-5ffc-4621-81d7-dbd8f42cdca7`) / `nqkai-prod` (`6084cfde-648d-45d6-be8c-26b83bd4b95c`)
+  - KV: `nqkai-dev` (`ba845020976d4aefb7bd2ee18ce29b14`) / `nqkai-prod` (`a9c1955eb227473a8faa0695301d2a0d`)
+  - R2: `nqkai-dev` / `nqkai-prod`
+- ✅ `wrangler.jsonc` に実 ID 反映済み
+- ⏳ リモート D1 マイグレーション（下記 2）
+- ⏳ GitHub Secrets（下記 3）／ ブランチ保護（下記 4）
+- ⏳ 初回デプロイ後に `WEBAUTHN_*` を実 URL へ更新（下記 5）
 
-`wrangler login` 済みの端末で実行する（`! wrangler login` で対話ログイン）。
+## 1. （参考）リソース作成コマンド
 
-```bash
-# D1（dev / prod）
-pnpm exec wrangler d1 create nqkai-dev
-pnpm exec wrangler d1 create nqkai-prod
-
-# KV（dev / prod）
-pnpm exec wrangler kv namespace create nqkai-dev
-pnpm exec wrangler kv namespace create nqkai-prod
-
-# R2（dev / prod）
-pnpm exec wrangler r2 bucket create nqkai-dev
-pnpm exec wrangler r2 bucket create nqkai-prod
-```
-
-出力された `database_id` と KV の `id` を `wrangler.jsonc` の該当 env に差し込む
-（`env.dev.d1_databases[0].database_id` など。現在は `0000...` のプレースホルダ）。
-
-## 2. 環境変数・シークレット
-
-`wrangler.jsonc` の `env.*.vars` にある `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN` を、
-実際のデプロイ先ホスト名に合わせて更新する。
-
-- dev: `nqkai-dev.<account>.workers.dev`（カスタムドメインを当てるならそのホスト）
-- production: 本番ドメイン
-
-センシティブな値が増えたら（例：将来の署名鍵）env ごとに登録する。
+作成済み。再作成や別アカウントで立てる場合の参考。
 
 ```bash
-pnpm exec wrangler secret put SOME_SECRET --env dev
-pnpm exec wrangler secret put SOME_SECRET --env production
+pnpm exec wrangler d1 create nqkai-dev  && pnpm exec wrangler d1 create nqkai-prod
+pnpm exec wrangler kv namespace create nqkai-dev && pnpm exec wrangler kv namespace create nqkai-prod
+pnpm exec wrangler r2 bucket create nqkai-dev && pnpm exec wrangler r2 bucket create nqkai-prod
 ```
 
-## 3. リモート D1 へマイグレーション適用（初回）
+出力の `database_id` / KV `id` を `wrangler.jsonc` の該当 env に差し込む。
 
-CI が毎デプロイで実行するが、初回は手動でも可。
+## 2. リモート D1 へマイグレーション適用
+
+CI が毎デプロイで実行するが、初回は手動で流す（`wrangler login` 済みの端末で）。
 
 ```bash
-pnpm exec wrangler d1 migrations apply DB --env dev --remote
-pnpm exec wrangler d1 migrations apply DB --env production --remote
+pnpm db:migrate:dev    # = wrangler d1 migrations apply DB --env dev --remote
+pnpm db:migrate:prod   # = wrangler d1 migrations apply DB --env production --remote
 ```
 
-## 4. GitHub Secrets
+## 3. GitHub Secrets
 
 リポジトリの Settings → Secrets and variables → Actions に登録する。
 
 | 名前 | 値 |
 |------|----|
+| `CLOUDFLARE_ACCOUNT_ID` | `e1bfc1ed29f5c1f17e23a9d77a3fad8a` |
 | `CLOUDFLARE_API_TOKEN` | Workers Scripts / D1 / R2 / Workers KV Storage の Edit 権限を持つ API トークン |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare のアカウント ID |
 
-API トークンは Cloudflare ダッシュボード → My Profile → API Tokens → Create Token（"Edit Cloudflare Workers" テンプレート + D1/R2/KV の権限を追加）。
+API トークンは Cloudflare ダッシュボード → My Profile → API Tokens → Create Token（"Edit Cloudflare Workers" テンプレートに D1 / R2 / KV の Edit を追加）。
 
-## 5. ブランチ保護（`main`）
+## 4. ブランチ保護（`main`）
 
 Settings → Branches → Add rule（`main`）:
 
@@ -67,23 +51,34 @@ Settings → Branches → Add rule（`main`）:
 - Require status checks to pass（`ci` を必須に）
 - Do not allow direct pushes
 
-## 6. デプロイの流れ
+## 5. デプロイと WEBAUTHN_* の確定
 
-```
-dev ブランチへ push        → GitHub Actions（deploy.yml）→ wrangler deploy --env dev
-dev → main の PR をマージ   → GitHub Actions（deploy.yml）→ wrangler deploy --env production
-```
-
-各ジョブは `typecheck → lint → test → build → d1 migrations apply --remote → deploy` の順に実行する。
-
-## 7. システム管理者の付与
-
-登録フロー（パスキー作成）でユーザーを作った後に権限を付与する。
+初回は手動デプロイして払い出される URL を確認する。
 
 ```bash
-# ローカル
-pnpm admin:grant you@example.com
-# dev / production
-pnpm admin:grant you@example.com --env dev
-pnpm admin:grant you@example.com --env production
+pnpm deploy:dev    # = CLOUDFLARE_ENV=dev react-router build && wrangler deploy
+```
+
+表示された `https://nqkai-dev.<subdomain>.workers.dev` に合わせて `wrangler.jsonc` の
+`env.dev.vars.WEBAUTHN_RP_ID` と `WEBAUTHN_ORIGIN` を更新し、再度 `pnpm deploy:dev`。
+（production も同様に `pnpm deploy:prod` と `env.production.vars` を更新）
+
+以降は自動：
+
+```
+dev ブランチへ push        → GitHub Actions（deploy.yml）→ CLOUDFLARE_ENV=dev + wrangler deploy
+dev → main の PR をマージ   → GitHub Actions（deploy.yml）→ CLOUDFLARE_ENV=production + wrangler deploy
+```
+
+各ジョブは `typecheck → lint → test → build → d1 migrations apply --remote → deploy` の順。
+`@cloudflare/vite-plugin` はビルド時の `CLOUDFLARE_ENV` で env を選ぶため、`wrangler deploy` に `--env` は付けない。
+
+## 6. システム管理者の付与
+
+登録フロー（パスキー作成）でユーザーを作った後に付与する。
+
+```bash
+pnpm admin:grant you@example.com                  # ローカル
+pnpm admin:grant you@example.com --env dev        # dev
+pnpm admin:grant you@example.com --env production # production
 ```

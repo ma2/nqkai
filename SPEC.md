@@ -123,7 +123,7 @@
 | dev | Cloudflare Workers（Worker 名 `nqkai-dev`） | **`dev` ブランチへの push** | `nqkai-dev`（DB / バケット / KV 名前空間） | 結合確認・動作検証 |
 | production | Cloudflare Workers（Worker 名 `nqkai`） | **`main` ブランチへの push**（`dev` からのマージ） | `nqkai-prod`（DB / バケット / KV 名前空間） | 本番 |
 
-- Cloudflare 側の環境分離は Wrangler の environments（`wrangler.jsonc` の `env.dev` / `env.production`）で行う。デプロイは `wrangler deploy --env dev` / `wrangler deploy --env production`。
+- Cloudflare 側の環境分離は Wrangler の environments（`wrangler.jsonc` の `env.dev` / `env.production`）で行う。ビルド時に `CLOUDFLARE_ENV=dev|production` を与えて `build/server/wrangler.json` に対象 env を焼き込み、`wrangler deploy`（`--env` なし）でデプロイする。ローカルからは `pnpm deploy:dev` / `pnpm deploy:prod`。
 - **各環境は独立した D1 データベース・R2 バケット・KV 名前空間・シークレットを持つ。** 環境間でデータは共有しない。名前付き env はバインディングを継承しないため、各 env に明示的に再宣言する。
 - ローカル（Docker）は常に Miniflare のローカルエミュレーションで動かし、`--remote` は使わない。リモートの D1/R2/KV に触れるのは CI からのみ。
 - シークレット（`SESSION_SIGNING_KEY`、WebAuthn RP 設定など）は環境ごとに一度だけ `wrangler secret put --env <env>` で登録する。CI では触らない。ローカルは `.dev.vars`（Git 管理外）。
@@ -132,22 +132,22 @@
 
 ```
  dev ブランチで開発
-   └─ push ──▶ GitHub Actions ──▶ wrangler deploy --env dev        （nqkai-dev へ）
+   └─ push ──▶ GitHub Actions ──▶ CLOUDFLARE_ENV=dev pnpm build && wrangler deploy   （nqkai-dev へ）
         │
         └─ PR: dev ─▶ main（レビュー・確認後にマージ）
-              └─ push(main) ──▶ GitHub Actions ──▶ wrangler deploy --env production  （nqkai へ）
+              └─ push(main) ──▶ GitHub Actions ──▶ CLOUDFLARE_ENV=production pnpm build && wrangler deploy   （nqkai へ）
 ```
 
 - `main` への直接 push は行わない（ブランチ保護。`dev` からの PR マージのみ）。
-- ワークフロー `.github/workflows/deploy.yml` は `on: push: branches: [dev, main]`。手順は共通で、ブランチ名から対象 env を決める：
+- ワークフロー `.github/workflows/deploy.yml` は `on: push: branches: [dev, main]`。ジョブ全体で環境変数 `CLOUDFLARE_ENV`（`main` なら `production`、それ以外は `dev`）を設定し、手順は共通：
 
   1. `pnpm install --frozen-lockfile`
   2. `pnpm typecheck` / `pnpm lint` / `pnpm test`（いずれか失敗ならデプロイしない）
-  3. `pnpm build`（`react-router build`）
-  4. `pnpm wrangler d1 migrations apply DB --env <env> --remote`（マイグレーション先行適用）
-  5. `pnpm wrangler deploy --env <env>`
+  3. `pnpm build` … `CLOUDFLARE_ENV` により `build/server/wrangler.json` に対象 env のバインディングが焼き込まれる
+  4. `pnpm exec wrangler d1 migrations apply DB --env "$CLOUDFLARE_ENV" --remote`（マイグレーション先行適用）
+  5. `pnpm exec wrangler deploy` … 焼き込み済み設定を使うため `--env` は付けない
 
-  `<env>` は `main` なら `production`、それ以外（`dev`）なら `dev`。
+> `@cloudflare/vite-plugin` はビルド時の `CLOUDFLARE_ENV` で `wrangler.jsonc` の `env.*` を選ぶ。`--env` を付けたビルドではなく、環境変数で env を切り替える点に注意。
 
 - **マイグレーションは後方互換（加算的変更）を原則**とし、デプロイ前に適用しても新旧どちらのコードでも動くようにする。列の削除・リネームは複数リリースに分割する。
 - GitHub Secrets：`CLOUDFLARE_API_TOKEN`（Workers Scripts / D1 / R2 / KV の編集権限）、`CLOUDFLARE_ACCOUNT_ID`。
@@ -1045,17 +1045,19 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      RR_ENV: ${{ github.ref_name == 'main' && 'production' || 'dev' }}
+      CLOUDFLARE_ENV: ${{ github.ref_name == 'main' && 'production' || 'dev' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck && pnpm lint && pnpm test
-      - run: pnpm build
-      - run: pnpm wrangler d1 migrations apply DB --env "$RR_ENV" --remote
-      - run: pnpm wrangler deploy --env "$RR_ENV"
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build   # CLOUDFLARE_ENV で対象 env を焼き込み
+      - run: pnpm exec wrangler d1 migrations apply DB --env "$CLOUDFLARE_ENV" --remote
+      - run: pnpm exec wrangler deploy   # 焼き込み済みのため --env なし
 ```
 
 ### 16.3 `wrangler.jsonc`（env 構成の骨子）
