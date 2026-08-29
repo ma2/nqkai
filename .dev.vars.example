@@ -1,0 +1,6 @@
+# ローカル開発用の環境変数。`.dev.vars` にコピーして使う（.dev.vars は Git 管理外）。
+# wrangler / @cloudflare/vite-plugin がローカル実行時に読み込む。
+
+WEBAUTHN_RP_ID=localhost
+WEBAUTHN_RP_NAME=nQkai (local)
+WEBAUTHN_ORIGIN=http://localhost:5173

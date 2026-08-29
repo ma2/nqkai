@@ -1,0 +1,74 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nqkai",
+  "main": "./workers/app.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./build/client"
+  },
+  "observability": {
+    "enabled": true
+  },
+  // 名前付き env はバインディング（vars / d1 / r2 / kv）を継承しないため、
+  // 各 env に明示的に再宣言する。database_id / KV id はプレースホルダ。
+  // 実リソース作成後（`wrangler d1 create` 等）に置き換える。詳細は SETUP.md。
+  "env": {
+    "dev": {
+      "name": "nqkai-dev",
+      "vars": {
+        "WEBAUTHN_RP_ID": "nqkai-dev.workers.dev",
+        "WEBAUTHN_RP_NAME": "nQkai（dev）",
+        "WEBAUTHN_ORIGIN": "https://nqkai-dev.workers.dev"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "nqkai-dev",
+          "database_id": "00000000-0000-0000-0000-000000000000",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "BUCKET",
+          "bucket_name": "nqkai-dev"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "KV",
+          "id": "00000000000000000000000000000000"
+        }
+      ]
+    },
+    "production": {
+      "name": "nqkai",
+      "vars": {
+        "WEBAUTHN_RP_ID": "example.com",
+        "WEBAUTHN_RP_NAME": "nQkai",
+        "WEBAUTHN_ORIGIN": "https://example.com"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "nqkai-prod",
+          "database_id": "00000000-0000-0000-0000-000000000000",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "BUCKET",
+          "bucket_name": "nqkai-prod"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "KV",
+          "id": "00000000000000000000000000000000"
+        }
+      ]
+    }
+  }
+}

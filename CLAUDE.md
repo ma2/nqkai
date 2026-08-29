@@ -11,10 +11,10 @@
 ## 技術スタック
 
 - 実行環境: Cloudflare Workers（単一 Worker）。dev / production の 2 環境（Wrangler environments）
-- ローカル: Docker（`docker compose` 上の `react-router dev` + Miniflare ローカルエミュレーション）
+- ローカル: Docker（`docker compose` 上の `react-router dev` + Miniflare ローカルエミュレーション）。ホスト直実行は Node 22.22+ と新しめ glibc が必要
 - 言語: TypeScript
-- アプリフレームワーク: React Router v7（framework mode）。SSR + ネストルーティング + loader / action
-- ビルド: Vite + `@react-router/dev`（Cloudflare プリセット）
+- アプリフレームワーク: React Router v8（framework mode）。SSR + ネストルーティング + loader / action。context は `RouterContextProvider`（`workers/app.ts` で `env`/`ctx` を注入、`app/server/context.server.ts` の `getServerContext()` で取り出す）
+- ビルド: Vite + `@react-router/dev` + `@cloudflare/vite-plugin`
 - UI: React
 - データベース: Cloudflare D1（SQLite）
 - ORM: Drizzle ORM + drizzle-kit
@@ -24,7 +24,7 @@
 - CSS: Tailwind CSS
 - 型・バリデーション共有: Zod（`app/lib`）
 - Lint/Format: Biome
-- テスト: Vitest + `@cloudflare/vitest-pool-workers`、E2E は Playwright
+- テスト: Vitest（現状は純粋関数の単体テスト。loader/action 結合テストは今後 `@cloudflare/vitest-pool-workers` で追加）、E2E は Playwright（CDP 仮想認証子でパスキー）
 - デプロイ: GitHub Actions → Wrangler。`dev` ブランチ push → dev 環境、`main` ブランチ push（`dev` からのマージ）→ production 環境。`main` への直接 push はしない
 
 ### データの流れ
@@ -46,18 +46,19 @@
 ローカルは Docker 前提（Node・pnpm・Wrangler はコンテナ内）。詳細は SPEC.md「16」。
 
 ```bash
+cp .dev.vars.example .dev.vars    # 初回のみ
 docker compose build              # 初回・依存更新時
 docker compose up                 # 開発サーバ（http://localhost:5173）
 
 # 以降は実行中コンテナ内で
-docker compose exec app pnpm typegen                                # ルート型 + バインディング型
-docker compose exec app pnpm drizzle-kit generate                   # schema.ts → migrations/
-docker compose exec app pnpm wrangler d1 migrations apply DB --local
-docker compose exec app pnpm seed:local
+docker compose exec app pnpm typegen              # react-router typegen + wrangler types
+docker compose exec app pnpm db:generate         # schema.ts → migrations/
+docker compose exec app pnpm db:migrate:local    # ローカル D1 に適用（--env dev --local）
+docker compose exec app pnpm admin:grant <email> # 登録後にシステム管理者権限を付与
 docker compose exec app pnpm typecheck
 docker compose exec app pnpm lint
-docker compose exec app pnpm test
-docker compose exec app pnpm test:e2e
+docker compose exec app pnpm test                # vitest（純粋関数）
+docker compose exec app pnpm test:e2e            # playwright（パスキー E2E）
 ```
 
 - ローカルは常に Miniflare のローカルエミュレーション。`--remote` は使わない（リモート D1/R2/KV に触れるのは CI のみ）。
@@ -67,24 +68,29 @@ docker compose exec app pnpm test:e2e
 
 ```
 workers/
-└─ app.ts           Worker エントリ（RR ハンドラ + getLoadContext でバインディング注入）
+└─ app.ts           Worker エントリ（RR ハンドラ + RouterContextProvider に env/ctx 注入）
 app/
 ├─ root.tsx         ルートレイアウト（認証状態 loader、通知ベル、エラーバウンダリ）
+├─ app.css          Tailwind v4 エントリ + 縦書きユーティリティ（.tategaki）
 ├─ routes.ts        ルート定義
-├─ routes/          ルートモジュール（loader / action / default コンポーネント、api.* はリソースルート）
-├─ server/          サーバ専用（*.server.ts のみ）
+├─ routes/          ルートモジュール（loader / action / default、api.* はリソースルート）
+├─ server/          サーバ専用（*.server.ts のみ。クライアントバンドルから除外）
+│  ├─ cloudflare.server.ts   RouterContext（env / ctx）
+│  ├─ context.server.ts      getServerContext() → { env, db }
 │  ├─ db/           schema.ts（Drizzle）/ client.server.ts
-│  ├─ auth.server.ts / authz.server.ts / ratelimit.server.ts
-│  └─ services/     ドメインロジック（フェーズ遷移・集計・CSV・エクスポート）
-├─ components/ features/ hooks/
-├─ lib/             Zod スキーマ・型・定数・enum（サーバ / クライアント共有）
-└─ styles/          Tailwind エントリ、縦書きユーティリティ
+│  ├─ auth.server.ts         セッション発行・破棄・getAuth / requireAuth
+│  ├─ webauthn.server.ts     @simplewebauthn ラッパ + KV チャレンジ
+│  └─ http.server.ts         assertTrustedRequest（CSRF）/ firstZodError
+├─ lib/             id / nav / schemas（Zod）/ constants / webauthn-client（クライアント）
 migrations/         drizzle-kit 生成の D1 マイグレーション
-test/               server（Vitest）/ e2e（Playwright）
-wrangler.jsonc      env.dev / env.production（バインディングは各 env に再宣言）
+scripts/            seed.ts / grant-admin.ts
+test/unit/          Vitest（純粋関数）
+test/e2e/           Playwright（CDP 仮想認証子）
+wrangler.jsonc      env.dev / env.production（バインディングは各 env に再宣言、id はプレースホルダ）
 Dockerfile.dev / docker-compose.yml   ローカル開発
-.dev.vars           ローカル用シークレット（Git 管理外。雛形は .dev.vars.example）
-.github/workflows/deploy.yml   dev push → dev、main push → production
+.dev.vars           ローカル用の WEBAUTHN_*（Git 管理外。雛形は .dev.vars.example）
+.github/workflows/  deploy.yml（dev/main push でデプロイ）/ ci.yml（PR チェック）
+SETUP.md            Cloudflare 実リソース作成・GitHub Secrets の手順
 ```
 
 ## アーキテクチャ指針

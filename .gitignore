@@ -14,8 +14,10 @@ build/
 !.dev.vars.example
 wrangler.toml.bak
 
-# React Router 生成物
+# React Router / Wrangler の生成物（typegen で再生成）
 .react-router/
+worker-configuration.d.ts
+*.tsbuildinfo
 
 # D1 / SQLite ローカル
 *.sqlite
