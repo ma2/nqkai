@@ -40,7 +40,7 @@
 | 選句 | せんく | 他者の句を選ぶこと |
 | 特選・並選・逆選 | とくせん・なみせん・ぎゃくせん | 選句の種別。特選＝高評価、並選＝評価、逆選＝マイナス評価 |
 | 互選 | ごせん | 参加者同士で選び合うこと |
-| ゲスト参加者 | | 結社に属さず、ゲストコードで単一の句会に参加する参加者 |
+| ゲスト参加者 | | 結社に属さず、ゲストコードで句会に参加する参加者。コードを持てば複数の句会に並行して参加できる |
 
 ---
 
@@ -182,14 +182,17 @@
 - ログイン成功時、ランダム 32 バイトのトークンを生成。**ハッシュ（SHA-256）を `sessions.id` に保存**し、生トークンを Cookie で配布する。
 - Cookie 名：`__Host-session`。属性：`Secure; HttpOnly; SameSite=Lax; Path=/`。
 - 有効期限：発行から 30 日（`sessions.expires_at`）。アクセスごとにスライド延長（残り 7 日を切ったら再発行）。
-- ミドルウェア `session` が毎リクエストで Cookie → `sessions` → `users` または `guest_participants` を解決し、`c.set('auth', …)` に載せる。
+- ミドルウェア `session` が毎リクエストで Cookie → `sessions` → `users`（会員）またはゲストコンテキストを解決し、`c.set('auth', …)` に載せる。
 - ログアウトは該当セッション行を削除。「全端末からログアウト」で当該ユーザーの全セッションを削除。
 
 ### 5.3 ゲストセッション
 
-- ゲストは `guest_participants` に紐づくセッションを持つ（`sessions.user_id` は NULL、`sessions.guest_participant_id` を設定）。
-- ゲストセッションの有効期限はゲストコードの有効期限（発行から3ヶ月）を上限とする。
-- ゲストは自分が参加した1句会のスコープ内でのみ操作でき、他画面へはアクセスできない。
+- ゲストセッションは1つのブラウザ（ゲスト個人）を表す。`sessions.user_id` は NULL、`sessions.kind = 'guest'` とする。
+- **1つのゲストセッションに複数の `guest_participants` を紐づけられる**（句会ごとに1行）。`guest_participants.session_id` がセッションを指す。
+- ゲストコードで新しい句会に参加すると、既存のゲストセッションはそのまま維持し、当該句会用の `guest_participant` を追加する。ゲストセッションが無ければ新規発行する。
+- リクエストのゲスト権限は**パスの `:kukaiId` で絞り込む**。`session_id` と `kukai_id` の組で `guest_participant` を引き、その句会の権限（`can_submit` 等）を適用する。参加していない句会に対する操作は 403。
+- ゲストがアクセスできるのは、自分が参加している句会のスコープ（句会トップ・投句・選句・結果・コメント）に限る。ダッシュボードや結社管理などの会員向け画面へはアクセスできない。
+- ゲストセッションの有効期限は、紐づく `guest_participants` が参照するゲストコードの有効期限（発行から3ヶ月）のうち**最も遅いもの**を上限とする。個々の句会のアクセス可否は当該コードの有効期限・失効状態で判定する。
 
 ### 5.4 システム管理者
 
@@ -266,6 +269,7 @@ Kukai ||--o{ KukaiPhaseEvent
 Kukai ||--o{ CsvImport (via Organization)
 
 GuestCode ||--o{ GuestParticipant
+Session ||--o{ GuestParticipant : "1ゲストセッションで複数句会に参加"
 GuestParticipant ||--o{ Submission : "authors (guest)"
 GuestParticipant ||--o{ Selection  : "selects (guest)"
 GuestParticipant ||--o{ Comment    : "writes (guest)"
@@ -308,13 +312,13 @@ Submission ||--o{ Comment
 | カラム | 型 | 説明 |
 |--------|----|----|
 | id | TEXT PK | セッショントークンの SHA-256 ハッシュ |
-| user_id | TEXT NULL FK → users | 会員セッション |
-| guest_participant_id | TEXT NULL FK → guest_participants | ゲストセッション |
+| kind | TEXT | `member` / `guest` |
+| user_id | TEXT NULL FK → users | 会員セッション（`kind = 'member'` のとき非 NULL） |
 | user_agent | TEXT NULL | |
 | created_at | INTEGER | |
 | expires_at | INTEGER | |
 
-制約：`user_id` と `guest_participant_id` はどちらか一方のみ非 NULL。
+制約：`kind = 'member'` なら `user_id` は非 NULL。`kind = 'guest'` なら `user_id` は NULL で、参加句会は `guest_participants.session_id` から引く（1セッションに複数句会可）。
 
 #### organizations（結社）
 
@@ -402,13 +406,14 @@ Submission ||--o{ Comment
 | カラム | 型 | 説明 |
 |--------|----|----|
 | id | TEXT PK | |
+| session_id | TEXT FK → sessions | 参加者が属するゲストセッション（ブラウザ）。1セッションが複数句会の行を持てる |
 | kukai_id | TEXT FK → kukai | |
 | guest_code_id | TEXT FK → guest_codes | |
 | display_name | TEXT | 「ゲスト1」「ゲスト2」…（句会内連番） |
 | can_submit / can_select / can_comment | INTEGER | 参加時点の権限スナップショット |
 | created_at / last_seen_at | INTEGER | |
 
-制約：`UNIQUE(kukai_id, display_name)`。
+制約：`UNIQUE(kukai_id, display_name)`、`UNIQUE(session_id, kukai_id)`（1セッションは1句会につき1参加者）。`session_id` 削除時は当該行も削除（ON DELETE CASCADE）。
 
 #### submissions（投句）
 
@@ -610,12 +615,14 @@ Submission ||--o{ Comment
 
 - 主催者がゲストコードを発行（`allow_guest = true` の句会のみ）。有効期限は発行から3ヶ月固定。使用上限は任意。
 - 参加：`POST /api/guest/join` に `code` と希望表示名（任意）を渡す。
-  - コードが有効・未失効・期限内・上限内なら `guest_participants` を作成（表示名は「ゲスト N」の連番。希望名があれば `ゲストN（希望名）` 等の形式は将来検討）。
+  - コードが有効・未失効・期限内・上限内なら、当該句会の `guest_participant` を作成（表示名は「ゲスト N」の連番。希望名があれば `ゲストN（希望名）` 等の形式は将来検討）。
   - 権限は句会設定のスナップショット（`can_submit` 等）。
-  - ゲストセッションを発行。
-- **1人のゲストは同時に1つの句会にのみ参加できる**（ブラウザ単位。既にゲストセッションがある状態で別コードに参加しようとしたら拒否、または現行セッションを破棄して切替）。
-  - 注：旧要件「複数句会への同時参加は不可」は本仕様ではゲストに適用する解釈とする。会員は複数句会に参加可能。**要レビュー確認。**
-- 終了した句会もゲストコードが有効な限り閲覧可能。
+  - リクエストにゲストセッションが無ければ新規発行し、あれば既存セッションに `guest_participant` を追加する（`guest_participants.session_id` で紐づく）。
+- **ゲストはコードを持てば複数の句会に並行して参加できる。**同時参加数の上限は設けない。
+  - 同じ句会の同じセッションから再度 `join` した場合は既存の `guest_participant` を返す（重複作成しない。`UNIQUE(session_id, kukai_id)`）。
+  - 会員（ログイン済みユーザー）は当然に複数句会へ参加可能。
+- 各句会へのアクセス可否は、その句会で使ったゲストコードの有効期限・失効状態で個別に判定する。あるコードが期限切れ・失効しても、他の句会への参加は影響を受けない。
+- 終了した句会も、参加に使ったゲストコードが有効な限り閲覧可能。
 
 ### 9.9 エクスポート / インポート
 
@@ -794,6 +801,7 @@ Submission ||--o{ Comment
 | メール通知 | ActionMailer | **廃止**（Web 申請 → オーナー承認、アプリ内通知のみ） |
 | フェーズ自動遷移 | ジョブ / cron 想定 | **廃止**（主催者の手動操作のみ、時刻は目安表示） |
 | リアルタイム更新 | WebSocket（任意） | **廃止**（軽いポーリング） |
+| ゲストの複数句会参加 | 「同時参加は不可」 | **許可**（コードがあれば複数句会に並行参加可。1ゲストセッションに句会ごとの `guest_participant` を紐づけ） |
 | 個人俳句 PDF（縦書き） | Rails で PDF 生成 | **スコープ外**（画面は縦書き表示、出力はテキストのみ） |
 | テスト | `rails test` / `rails test:system` | Vitest（vitest-pool-workers）/ Playwright |
 | Lint | RuboCop | Biome |
@@ -817,7 +825,7 @@ Submission ||--o{ Comment
 - 過去句会の検索・フィルタ。
 - 結社内ランキング、プロフィール公開範囲設定。
 - 通知の ON/OFF 設定。
-- ゲストの希望表示名の扱い、ゲストの複数句会参加可否の緩和。
+- ゲストの希望表示名の扱い。
 - 管理操作専用の監査ログ。
 - サポート体制、退会時のデータ扱いのポリシー明文化。
 
@@ -940,7 +948,7 @@ pnpm wrangler secret put SESSION_SIGNING_KEY
 - **フェーズ遷移**：`advance` / `rewind` / `extend` の各遷移、フェーズ外操作の拒否（投句を `submission` 以外で行う等）、締切時のシャッフル。
 - **匿名性**：`authors_revealed_at` 未設定時に作者情報が API レスポンスへ漏れないこと。
 - **選句ルール**：自句選句の拒否、種別上限の超過、選び直し・取り消し、非表示句の除外、集計スコア（逆選の負値含む）。
-- **ゲスト**：コードの期限切れ・失効・上限超過、権限スナップショット、連番表示名、単一句会制約。
+- **ゲスト**：コードの期限切れ・失効・上限超過、権限スナップショット、連番表示名、1セッションでの複数句会並行参加、`:kukaiId` による権限スコープ、未参加句会への操作拒否、あるコード失効が他句会に波及しないこと。
 - **エクスポート／インポート**：テキスト / CSV の内容と文字コード、CSV インポートの行単位検証と履歴。
 - **認証**：パスキー登録・ログイン・認証子追加／削除、セッションの有効期限とスライド延長、ログアウト（単一・全端末）。
 - **E2E（Playwright）**：登録 → 結社作成 → 句会作成 → 投句 → 選句 → 結果発表 の一連フロー、ゲスト参加フロー。WebAuthn は仮想認証子（CDP `WebAuthn` ドメイン）で実行。
