@@ -16,9 +16,9 @@
     "dev": {
       "name": "nqkai-dev",
       "vars": {
-        "WEBAUTHN_RP_ID": "nqkai-dev.workers.dev",
+        "WEBAUTHN_RP_ID": "nqkai-dev.mckoy.workers.dev",
         "WEBAUTHN_RP_NAME": "nQkai（dev）",
-        "WEBAUTHN_ORIGIN": "https://nqkai-dev.workers.dev"
+        "WEBAUTHN_ORIGIN": "https://nqkai-dev.mckoy.workers.dev"
       },
       "d1_databases": [
         {
@@ -44,9 +44,9 @@
     "production": {
       "name": "nqkai",
       "vars": {
-        "WEBAUTHN_RP_ID": "nqkai.workers.dev",
+        "WEBAUTHN_RP_ID": "nqkai.mckoy.workers.dev",
         "WEBAUTHN_RP_NAME": "nQkai",
-        "WEBAUTHN_ORIGIN": "https://nqkai.workers.dev"
+        "WEBAUTHN_ORIGIN": "https://nqkai.mckoy.workers.dev"
       },
       "d1_databases": [
         {
