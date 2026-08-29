@@ -5,7 +5,8 @@ on:
     branches: [dev, main]
 
 jobs:
-  check:
+  ci:
+    name: ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
