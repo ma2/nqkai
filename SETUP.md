@@ -1,35 +1,40 @@
 # SETUP — Cloudflare / GitHub の初期セットアップ
 
+## 環境と URL
+
+- アカウント `e1bfc1ed29f5c1f17e23a9d77a3fad8a`、リージョン APAC
+- workers.dev サブドメイン = **`nqkai`**、Worker 名で環境を区別する
+
+| 環境 | Worker 名 | URL | git ブランチ |
+|------|-----------|-----|--------------|
+| staging | `staging` | `https://staging.nqkai.workers.dev` | `dev` |
+| production | `prod` | `https://prod.nqkai.workers.dev` | `main` |
+
 ## 状態
 
-- ✅ Cloudflare リソース作成済み（アカウント `e1bfc1ed29f5c1f17e23a9d77a3fad8a`、リージョン APAC）
-  - D1: `nqkai-dev` (`2a9d30cb-5ffc-4621-81d7-dbd8f42cdca7`) / `nqkai-prod` (`6084cfde-648d-45d6-be8c-26b83bd4b95c`)
-  - KV: `nqkai-dev` (`ba845020976d4aefb7bd2ee18ce29b14`) / `nqkai-prod` (`a9c1955eb227473a8faa0695301d2a0d`)
-  - R2: `nqkai-dev` / `nqkai-prod`
-- ✅ `wrangler.jsonc` に実 ID 反映済み
+- ✅ Cloudflare リソース作成済み
+  - D1: `nqkai-staging` (`1f1d1edc-1e83-40e9-97bb-55bbbbee4be3`) / `nqkai-prod` (`6084cfde-648d-45d6-be8c-26b83bd4b95c`)
+  - KV: `nqkai-staging` (`3a75afdfe34c43d6a6d27b2dc5ce2c8d`) / `nqkai-prod` (`a9c1955eb227473a8faa0695301d2a0d`)
+  - R2: `nqkai-staging` / `nqkai-prod`
+  - （旧 `nqkai-dev` の D1/KV/R2 は未使用。空なので放置で可、気になれば削除）
+- ✅ `wrangler.jsonc` に実 ID・URL 反映済み
+- ⏳ **アカウントの workers.dev サブドメインを `nqkai` に変更**（下記 1）
 - ⏳ リモート D1 マイグレーション（下記 2）
 - ⏳ GitHub Secrets（下記 3）／ ブランチ保護（下記 4）
-- ⏳ 初回デプロイ後に `WEBAUTHN_*` を実 URL へ更新（下記 5）
+- ⏳ 初回デプロイ（下記 5）
 
-## 1. （参考）リソース作成コマンド
+## 1. workers.dev サブドメインの変更
 
-作成済み。再作成や別アカウントで立てる場合の参考。
-
-```bash
-pnpm exec wrangler d1 create nqkai-dev  && pnpm exec wrangler d1 create nqkai-prod
-pnpm exec wrangler kv namespace create nqkai-dev && pnpm exec wrangler kv namespace create nqkai-prod
-pnpm exec wrangler r2 bucket create nqkai-dev && pnpm exec wrangler r2 bucket create nqkai-prod
-```
-
-出力の `database_id` / KV `id` を `wrangler.jsonc` の該当 env に差し込む。
+ダッシュボード → Workers & Pages → 右側 **Account details** → Subdomain → `mckoy` を **`nqkai`** に変更。
+アカウント全体の設定で、既存 Worker の URL も新サブドメインへ移る。
 
 ## 2. リモート D1 へマイグレーション適用
 
 CI が毎デプロイで実行するが、初回は手動で流す（`wrangler login` 済みの端末で）。
 
 ```bash
-pnpm db:migrate:dev    # = wrangler d1 migrations apply DB --env dev --remote
-pnpm db:migrate:prod   # = wrangler d1 migrations apply DB --env production --remote
+pnpm db:migrate:staging   # = wrangler d1 migrations apply DB --env staging --remote
+pnpm db:migrate:prod      # = wrangler d1 migrations apply DB --env production --remote
 ```
 
 ## 3. GitHub Secrets
@@ -51,22 +56,19 @@ Settings → Branches → Add rule（`main`）:
 - Require status checks to pass（`ci` を必須に）
 - Do not allow direct pushes
 
-## 5. デプロイと WEBAUTHN_* の確定
+## 5. 初回デプロイ
 
-初回は手動デプロイして払い出される URL を確認する。
+サブドメイン変更・マイグレーション適用のあと、手動で初回デプロイ：
 
 ```bash
-pnpm deploy:dev    # = CLOUDFLARE_ENV=dev react-router build && wrangler deploy
+pnpm deploy:staging   # = CLOUDFLARE_ENV=staging react-router build && wrangler deploy
+pnpm deploy:prod      # = CLOUDFLARE_ENV=production react-router build && wrangler deploy
 ```
-
-表示された `https://nqkai-dev.<subdomain>.workers.dev` に合わせて `wrangler.jsonc` の
-`env.dev.vars.WEBAUTHN_RP_ID` と `WEBAUTHN_ORIGIN` を更新し、再度 `pnpm deploy:dev`。
-（production も同様に `pnpm deploy:prod` と `env.production.vars` を更新）
 
 以降は自動：
 
 ```
-dev ブランチへ push        → GitHub Actions（deploy.yml）→ CLOUDFLARE_ENV=dev + wrangler deploy
+dev ブランチへ push        → GitHub Actions（deploy.yml）→ CLOUDFLARE_ENV=staging + wrangler deploy
 dev → main の PR をマージ   → GitHub Actions（deploy.yml）→ CLOUDFLARE_ENV=production + wrangler deploy
 ```
 
@@ -79,6 +81,6 @@ dev → main の PR をマージ   → GitHub Actions（deploy.yml）→ CLOUDFL
 
 ```bash
 pnpm admin:grant you@example.com                  # ローカル
-pnpm admin:grant you@example.com --env dev        # dev
+pnpm admin:grant you@example.com --env staging    # staging
 pnpm admin:grant you@example.com --env production # production
 ```

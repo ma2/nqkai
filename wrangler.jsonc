@@ -11,42 +11,44 @@
     "enabled": true
   },
   // 名前付き env はバインディング（vars / d1 / r2 / kv）を継承しないため、各 env に明示的に再宣言する。
-  // WEBAUTHN_* は初回デプロイで判明する *.workers.dev のホスト名（またはカスタムドメイン）に合わせて更新する。
+  // アカウントの workers.dev サブドメインは `nqkai`。Worker 名で環境を区別する。
+  //   staging → https://staging.nqkai.workers.dev
+  //   prod    → https://prod.nqkai.workers.dev
   "env": {
-    "dev": {
-      "name": "nqkai-dev",
+    "staging": {
+      "name": "staging",
       "vars": {
-        "WEBAUTHN_RP_ID": "nqkai-dev.mckoy.workers.dev",
-        "WEBAUTHN_RP_NAME": "nQkai（dev）",
-        "WEBAUTHN_ORIGIN": "https://nqkai-dev.mckoy.workers.dev"
+        "WEBAUTHN_RP_ID": "staging.nqkai.workers.dev",
+        "WEBAUTHN_RP_NAME": "nQkai（staging）",
+        "WEBAUTHN_ORIGIN": "https://staging.nqkai.workers.dev"
       },
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "nqkai-dev",
-          "database_id": "2a9d30cb-5ffc-4621-81d7-dbd8f42cdca7",
+          "database_name": "nqkai-staging",
+          "database_id": "1f1d1edc-1e83-40e9-97bb-55bbbbee4be3",
           "migrations_dir": "migrations"
         }
       ],
       "r2_buckets": [
         {
           "binding": "BUCKET",
-          "bucket_name": "nqkai-dev"
+          "bucket_name": "nqkai-staging"
         }
       ],
       "kv_namespaces": [
         {
           "binding": "KV",
-          "id": "ba845020976d4aefb7bd2ee18ce29b14"
+          "id": "3a75afdfe34c43d6a6d27b2dc5ce2c8d"
         }
       ]
     },
     "production": {
-      "name": "nqkai",
+      "name": "prod",
       "vars": {
-        "WEBAUTHN_RP_ID": "nqkai.mckoy.workers.dev",
+        "WEBAUTHN_RP_ID": "prod.nqkai.workers.dev",
         "WEBAUTHN_RP_NAME": "nQkai",
-        "WEBAUTHN_ORIGIN": "https://nqkai.mckoy.workers.dev"
+        "WEBAUTHN_ORIGIN": "https://prod.nqkai.workers.dev"
       },
       "d1_databases": [
         {

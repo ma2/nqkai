@@ -10,7 +10,7 @@
 
 ## 技術スタック
 
-- 実行環境: Cloudflare Workers（単一 Worker）。dev / production の 2 環境（Wrangler environments）
+- 実行環境: Cloudflare Workers（単一 Worker）。staging / production の 2 環境（Wrangler environments、workers.dev サブドメイン `nqkai` + Worker 名 `staging` / `prod`）
 - ローカル: Docker（`docker compose` 上の `react-router dev` + Miniflare ローカルエミュレーション）。ホスト直実行は Node 22.22+ と新しめ glibc が必要
 - 言語: TypeScript
 - アプリフレームワーク: React Router v8（framework mode）。SSR + ネストルーティング + loader / action。context は `RouterContextProvider`（`workers/app.ts` で `env`/`ctx` を注入、`app/server/context.server.ts` の `getServerContext()` で取り出す）
@@ -53,7 +53,7 @@ docker compose up                 # 開発サーバ（http://localhost:5173）
 # 以降は実行中コンテナ内で
 docker compose exec app pnpm typegen              # react-router typegen + wrangler types
 docker compose exec app pnpm db:generate         # schema.ts → migrations/
-docker compose exec app pnpm db:migrate:local    # ローカル D1 に適用（--env dev --local）
+docker compose exec app pnpm db:migrate:local    # ローカル D1 に適用（--env staging --local）
 docker compose exec app pnpm admin:grant <email> # 登録後にシステム管理者権限を付与
 docker compose exec app pnpm typecheck
 docker compose exec app pnpm lint
@@ -86,7 +86,7 @@ migrations/         drizzle-kit 生成の D1 マイグレーション
 scripts/            seed.ts / grant-admin.ts
 test/unit/          Vitest（純粋関数）
 test/e2e/           Playwright（CDP 仮想認証子）
-wrangler.jsonc      env.dev / env.production（バインディングは各 env に再宣言、id はプレースホルダ）
+wrangler.jsonc      env.staging / env.production（バインディングは各 env に再宣言。実 ID 設定済み）
 Dockerfile.dev / docker-compose.yml   ローカル開発
 .dev.vars           ローカル用の WEBAUTHN_*（Git 管理外。雛形は .dev.vars.example）
 .github/workflows/  deploy.yml（dev/main push でデプロイ）/ ci.yml（PR チェック）

@@ -14,8 +14,8 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      # main → production、それ以外（dev）→ dev。ビルドとデプロイの両方が参照する。
-      CLOUDFLARE_ENV: ${{ github.ref_name == 'main' && 'production' || 'dev' }}
+      # main → production、それ以外（dev ブランチ）→ staging。ビルドとデプロイの両方が参照する。
+      CLOUDFLARE_ENV: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
