@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      # 依存とローカル D1/R2/KV の状態はコンテナ側ボリュームで保持
+      - node_modules:/app/node_modules
+      - wrangler_state:/app/.wrangler
+    env_file:
+      - path: .dev.vars
+        required: false
+    stdin_open: true
+    tty: true
+
+volumes:
+  node_modules:
+  wrangler_state:

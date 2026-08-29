@@ -1,0 +1,20 @@
+# ビルドスクリプトの実行を許可する依存（esbuild / workerd のネイティブバイナリ取得）
+onlyBuiltDependencies:
+  - esbuild
+  - workerd
+
+# minimumReleaseAge（新しすぎるパッケージのブロック）を無効化する対象。
+# 本プロジェクトの想定バージョンが最近リリースのため個別に許可する。
+minimumReleaseAgeExclude:
+  - "@cloudflare/vite-plugin"
+  - "@cloudflare/vitest-pool-workers"
+  - "@cloudflare/workers-types"
+  - "@react-router/dev"
+  - "@react-router/node"
+  - miniflare
+  - react-router
+  - wrangler
+
+allowBuilds:
+  esbuild: true
+  workerd: true

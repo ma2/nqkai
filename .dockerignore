@@ -1,0 +1,8 @@
+.git
+node_modules
+.wrangler
+.react-router
+build
+test-results
+playwright-report
+*.log

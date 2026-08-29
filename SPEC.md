@@ -51,9 +51,9 @@
 
 | 分類 | 採用技術 |
 |------|----------|
-| 実行環境 | Cloudflare Workers（単一 Worker）。dev / production の 2 環境（「3.2」） |
+| 実行環境 | Cloudflare Workers（単一 Worker）。staging / production の 2 環境（「3.2」） |
 | 言語 | TypeScript |
-| アプリフレームワーク | React Router v7（framework mode）。SSR + ネストルーティング + loader / action |
+| アプリフレームワーク | React Router v8（framework mode）。SSR + ネストルーティング + loader / action |
 | ビルド | Vite + `@react-router/dev`（Cloudflare プリセット） |
 | UI ライブラリ | React |
 | データベース | Cloudflare D1（SQLite） |
@@ -70,7 +70,7 @@
 | デプロイ | GitHub Actions → Wrangler（`dev` push → dev、`main` push → production） |
 | ローカル開発 | Docker（`docker compose`）上の `react-router dev` + ローカル D1/R2/KV エミュレーション |
 
-### なぜ React Router v7（framework mode）か
+### なぜ React Router v8（framework mode）か
 
 - 想定規模が小さい（「12.2」）ため、性能ではなく**部品数の少なさ**でスタックを選ぶ。
 - 独立した JSON API + SPA + データ取得ライブラリの三層を、**loader（サーバ読み取り）/ action（サーバ書き込み）/ 自動再検証**に畳める。TanStack Query 相当は不要。
@@ -106,24 +106,24 @@
                   └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **1 Worker がアプリ全体**。React Router の `createRequestHandler` を Worker の `fetch` にぶら下げる。フロントとバックの境界は「ルートモジュール内の server 関数（loader/action）」と「client コンポーネント」。
+- **1 Worker がアプリ全体**。React Router の `createRequestHandler` を Worker の `fetch` にぶら下げ、`RouterContextProvider` に Cloudflare バインディング（`env` / `ctx`）を積んで渡す。フロントとバックの境界は「ルートモジュール内の server 関数（loader/action）」と「client コンポーネント」。
 - データの流れ：
   - **読み取り** … 各ルートの `loader`（Worker 上で実行）が Drizzle で D1 を直接引く。クライアント遷移時は RR がバックグラウンドで loader を再実行。
   - **書き込み** … `<Form>` / `useFetcher` → ルートの `action`（Worker 上で実行）。完了後、RR が同一ページの loader を自動再検証する。
   - **fetch 駆動の口** … WebAuthn セレモニー、句会状態のポーリング、エクスポートのダウンロード、画像配信のみ `/api/*` の**リソースルート**で提供。
 - リクエスト／レスポンスと入力の型は `app/lib` の Zod スキーマから導出し、action の検証とフォーム側の検証で共有する。
 - ドメインロジックは `app/server/services/*.server.ts` に集約し、loader / action は「入力検証 → サービス呼び出し → 整形」に徹する。
-- 認証・権限は loader / action から呼ぶ `getAuth()` / `authorize()` ヘルパ（`*.server.ts`）に集約。共通の前処理が増えたら React Router の middleware に切り出す。
+- 認証・権限は loader / action から呼ぶ `getAuth()` / `requireAuth()` ヘルパ（`*.server.ts`）に集約。共通の前処理が増えたら React Router v8 の middleware に切り出す。
 
 ### 3.2 環境
 
 | 環境 | 実行場所 | デプロイのトリガー | D1 / R2 / KV | 用途 |
 |------|----------|--------------------|--------------|------|
 | local | Docker（`docker compose`）上の `react-router dev` | 手動（`docker compose up`） | Miniflare のローカルエミュレーション（状態は名前付きボリュームで永続化） | 開発 |
-| dev | Cloudflare Workers（Worker 名 `nqkai-dev`） | **`dev` ブランチへの push** | `nqkai-dev`（DB / バケット / KV 名前空間） | 結合確認・動作検証 |
-| production | Cloudflare Workers（Worker 名 `nqkai`） | **`main` ブランチへの push**（`dev` からのマージ） | `nqkai-prod`（DB / バケット / KV 名前空間） | 本番 |
+| staging | Cloudflare Workers（Worker 名 `nqkai-staging` → `https://nqkai-staging.mckoy.workers.dev`） | **`dev` ブランチへの push** | `nqkai-staging`（D1 / R2 / KV） | 結合確認・動作検証 |
+| production | Cloudflare Workers（Worker 名 `nqkai-prod` → `https://nqkai-prod.mckoy.workers.dev`） | **`main` ブランチへの push**（`dev` からのマージ） | `nqkai-prod`（D1 / R2 / KV） | 本番 |
 
-- Cloudflare 側の環境分離は Wrangler の environments（`wrangler.jsonc` の `env.dev` / `env.production`）で行う。デプロイは `wrangler deploy --env dev` / `wrangler deploy --env production`。
+- Cloudflare 側の環境分離は Wrangler の environments（`wrangler.jsonc` の `env.staging` / `env.production`）で行う。アカウントの workers.dev サブドメインは `mckoy`（他アプリと共有・変更しない）、Worker 名（`nqkai-staging` / `nqkai-prod`）で環境を区別する。ビルド時に `CLOUDFLARE_ENV=staging|production` を与えて `build/server/wrangler.json` に対象 env を焼き込み、`wrangler deploy`（`--env` なし）でデプロイする。ローカルからは `pnpm deploy:staging` / `pnpm deploy:prod`。
 - **各環境は独立した D1 データベース・R2 バケット・KV 名前空間・シークレットを持つ。** 環境間でデータは共有しない。名前付き env はバインディングを継承しないため、各 env に明示的に再宣言する。
 - ローカル（Docker）は常に Miniflare のローカルエミュレーションで動かし、`--remote` は使わない。リモートの D1/R2/KV に触れるのは CI からのみ。
 - シークレット（`SESSION_SIGNING_KEY`、WebAuthn RP 設定など）は環境ごとに一度だけ `wrangler secret put --env <env>` で登録する。CI では触らない。ローカルは `.dev.vars`（Git 管理外）。
@@ -132,22 +132,22 @@
 
 ```
  dev ブランチで開発
-   └─ push ──▶ GitHub Actions ──▶ wrangler deploy --env dev        （nqkai-dev へ）
+   └─ push ──▶ GitHub Actions ──▶ CLOUDFLARE_ENV=staging pnpm build && wrangler deploy   （nqkai-staging.mckoy.workers.dev へ）
         │
         └─ PR: dev ─▶ main（レビュー・確認後にマージ）
-              └─ push(main) ──▶ GitHub Actions ──▶ wrangler deploy --env production  （nqkai へ）
+              └─ push(main) ──▶ GitHub Actions ──▶ CLOUDFLARE_ENV=production pnpm build && wrangler deploy   （nqkai-prod.mckoy.workers.dev へ）
 ```
 
 - `main` への直接 push は行わない（ブランチ保護。`dev` からの PR マージのみ）。
-- ワークフロー `.github/workflows/deploy.yml` は `on: push: branches: [dev, main]`。手順は共通で、ブランチ名から対象 env を決める：
+- ワークフロー `.github/workflows/deploy.yml` は `on: push: branches: [dev, main]`。ジョブ全体で環境変数 `CLOUDFLARE_ENV`（`main` なら `production`、それ以外＝`dev` ブランチは `staging`）を設定し、手順は共通：
 
   1. `pnpm install --frozen-lockfile`
   2. `pnpm typecheck` / `pnpm lint` / `pnpm test`（いずれか失敗ならデプロイしない）
-  3. `pnpm build`（`react-router build`）
-  4. `pnpm wrangler d1 migrations apply DB --env <env> --remote`（マイグレーション先行適用）
-  5. `pnpm wrangler deploy --env <env>`
+  3. `pnpm build` … `CLOUDFLARE_ENV` により `build/server/wrangler.json` に対象 env のバインディングが焼き込まれる
+  4. `pnpm exec wrangler d1 migrations apply DB --env "$CLOUDFLARE_ENV" --remote`（マイグレーション先行適用）
+  5. `pnpm exec wrangler deploy` … 焼き込み済み設定を使うため `--env` は付けない
 
-  `<env>` は `main` なら `production`、それ以外（`dev`）なら `dev`。
+> `@cloudflare/vite-plugin` はビルド時の `CLOUDFLARE_ENV` で `wrangler.jsonc` の `env.*` を選ぶ。`--env` を付けたビルドではなく、環境変数で env を切り替える点に注意。
 
 - **マイグレーションは後方互換（加算的変更）を原則**とし、デプロイ前に適用しても新旧どちらのコードでも動くようにする。列の削除・リネームは複数リリースに分割する。
 - GitHub Secrets：`CLOUDFLARE_API_TOKEN`（Workers Scripts / D1 / R2 / KV の編集権限）、`CLOUDFLARE_ACCOUNT_ID`。
@@ -162,7 +162,7 @@
 ├─ SPEC.md                       本仕様書
 ├─ package.json
 ├─ pnpm-lock.yaml
-├─ wrangler.jsonc                Worker 設定・env.dev / env.production（DB / BUCKET / KV）
+├─ wrangler.jsonc                Worker 設定・env.staging / env.production（DB / BUCKET / KV）
 ├─ react-router.config.ts        RR 設定（ssr: true、Cloudflare プリセット）
 ├─ vite.config.ts               @react-router/dev + Cloudflare plugin
 ├─ tsconfig.json
@@ -243,7 +243,7 @@ WebAuthn セレモニーは `@simplewebauthn/browser` から fetch で叩くた�
 - ログイン成功時、ランダム 32 バイトのトークンを生成。**ハッシュ（SHA-256）を `sessions.id` に保存**し、生トークンを Cookie で配布する。
 - Cookie 名：`__Host-session`。属性：`Secure; HttpOnly; SameSite=Lax; Path=/`。
 - 有効期限：発行から 30 日（`sessions.expires_at`）。アクセスごとにスライド延長（残り 7 日を切ったら再発行）。
-- loader / action から呼ぶ `getAuth(request, context)` が Cookie → `sessions` → `users`（会員）またはゲストコンテキストを解決して返す。認証必須ルートでは未解決なら `/login` へ `redirect`、権限不足なら 403 を throw する。共通前処理が増えたら React Router の middleware に移す。
+- loader / action から呼ぶ `getAuth(db, request)` が Cookie → `sessions` → `users`（会員）またはゲストコンテキストを解決して返す。認証必須ルートでは `requireAuth()` が未解決時に `/login` へ `redirect`、権限不足は 403 を throw する。共通前処理が増えたら React Router v8 の middleware に移す。
 - ログアウトは該当セッション行を削除。「全端末からログアウト」で当該ユーザーの全セッションを削除。
 
 ### 5.3 ゲストセッション
@@ -770,7 +770,7 @@ Submission ||--o{ Comment
 
 ## 11. フロントエンド設計
 
-### 11.1 ルーティング（React Router v7 framework mode、抜粋）
+### 11.1 ルーティング（React Router v8 framework mode、抜粋）
 
 `app/routes.ts` で定義。URL と画面の対応は次の通り（loader / action の内容は「10.2」）。
 
@@ -860,11 +860,11 @@ Submission ||--o{ Comment
 
 | 項目 | 旧（Rails 8） | 新（Cloudflare） |
 |------|---------------|-------------------|
-| 実行基盤 | Rails サーバ | Cloudflare Workers（単一 Worker）。dev / production の 2 環境 |
+| 実行基盤 | Rails サーバ | Cloudflare Workers（単一 Worker）。staging / production の 2 環境 |
 | 言語 | Ruby | TypeScript |
 | ローカル環境 | rails server | Docker（`docker compose` 上の `react-router dev` + ローカルエミュレーション） |
 | デプロイ | 手動 / 任意 | GitHub Actions（`dev` push → dev、`main` push → production） |
-| アプリ構成 | Rails MVC + Turbo/Stimulus | React Router v7（framework mode）。loader / action + SSR、fetch 駆動の口のみ `/api/*` リソースルート |
+| アプリ構成 | Rails MVC + Turbo/Stimulus | React Router v8（framework mode）。loader / action + SSR、fetch 駆動の口のみ `/api/*` リソースルート |
 | DB | SQLite（自前） | Cloudflare D1 |
 | ORM | Active Record | Drizzle ORM |
 | 認証実装 | Rails + パスキー gem | `@simplewebauthn/*` + D1 セッション |
@@ -906,17 +906,19 @@ Submission ||--o{ Comment
 
 MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成・参加、句会の1サイクル、基本権限）。
 
-### フェーズ1：基盤
+### フェーズ1：基盤 ✅ 実装済み
 
-- React Router v7（framework mode）+ Cloudflare プリセットの雛形作成、`workers/app.ts` の `getLoadContext` でバインディング注入
-- Wrangler / Vite / D1 / R2 / KV のセットアップ、`wrangler.jsonc` の `env.dev` / `env.production`、`react-router typegen` / `wrangler types`
-- **Docker 開発環境**（`Dockerfile.dev` / `docker-compose.yml`、`.wrangler` ボリューム、`.dev.vars`）
-- **CI/CD**（`.github/workflows/deploy.yml`：`dev` push → dev、`main` push → production。`main` ブランチ保護）
-- Cloudflare リソース作成（`nqkai-dev` / `nqkai-prod` の D1・R2・KV）、GitHub Secrets 登録、各 env のシークレット登録
-- Drizzle スキーマ + 初期マイグレーション + seed
-- パスキー登録・ログイン・セッション・認証子管理（`/api/auth/*` リソースルート + `auth.server.ts`）
-- ユーザーモデル（俳号、プロフィール画像 = R2）
-- `root.tsx` レイアウト（認証状態 loader、通知ベル、エラーバウンダリ）、ログイン / 登録 / ダッシュボード、レスポンシブ土台、縦書きユーティリティ
+- ✅ React Router v8（framework mode）+ `@cloudflare/vite-plugin` の雛形、`workers/app.ts` で `RouterContextProvider` にバインディング（`env` / `ctx`）を注入
+- ✅ Wrangler / Vite / D1 / R2 / KV、`wrangler.jsonc` の `env.staging` / `env.production`、`react-router typegen` / `wrangler types`
+- ✅ **Docker 開発環境**（`Dockerfile.dev` / `docker-compose.yml`、`.wrangler` ボリューム、`.dev.vars`）
+- ✅ **CI/CD**（`.github/workflows/deploy.yml`：`dev` push → dev、`main` push → production／`ci.yml`：PR で typecheck・lint・test）
+- ✅ Drizzle スキーマ（users / webauthn_credentials / sessions / notifications）+ 初期マイグレーション `0000_init.sql` + seed（現状 no-op）
+- ✅ パスキー登録・ログイン・セッション（`__Host-` Cookie + D1）・認証子管理（`/api/auth/*` リソースルート + `auth.server.ts` / `webauthn.server.ts`）
+- ✅ ユーザーモデル（俳号、プロフィール画像 = R2、`admin:grant` スクリプトでシステム管理者付与）
+- ✅ `root.tsx` レイアウト（認証状態 loader、通知ベル（件数のみ）、エラーバウンダリ）、ログイン / 登録 / 設定 / ダッシュボード、レスポンシブ土台、縦書きユーティリティ
+- ✅ テスト：Vitest（純粋関数）+ Playwright（CDP 仮想認証子でパスキー登録→ログインの E2E）
+- ✅ Cloudflare 実リソース作成（`nqkai-staging` / `nqkai-prod` の D1・R2・KV）、staging へ初回デプロイ（https://nqkai-staging.mckoy.workers.dev）
+- ⏳ 残：リモート D1 マイグレーション、production への初回デプロイ、GitHub Secrets、`main` ブランチ保護 → 手順は `SETUP.md`
 
 ### フェーズ2：結社
 
@@ -975,6 +977,9 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 前提：Docker / Docker Compose のみ（Node・pnpm・Wrangler はコンテナ内）。
 
 ```bash
+# 初回：ローカル用の環境変数を用意
+cp .dev.vars.example .dev.vars
+
 # 初回・依存更新時
 docker compose build
 
@@ -982,21 +987,23 @@ docker compose build
 docker compose up
 
 # 以降のコマンドは実行中コンテナ内で
-docker compose exec app pnpm typegen                              # ルート型 + バインディング型
-docker compose exec app pnpm drizzle-kit generate                 # schema.ts → migrations/
-docker compose exec app pnpm wrangler d1 migrations apply DB --local
-docker compose exec app pnpm seed:local                           # 初期データ・システム管理者
+docker compose exec app pnpm typegen                              # ルート型 + Env 型
+docker compose exec app pnpm db:generate                          # schema.ts → migrations/
+docker compose exec app pnpm db:migrate:local                     # ローカル D1 に適用（--env staging --local）
+docker compose exec app pnpm seed:local                           # フェーズ1は no-op
+docker compose exec app pnpm admin:grant <email>                  # 登録後にシステム管理者権限を付与
 docker compose exec app pnpm typecheck
 docker compose exec app pnpm lint
-docker compose exec app pnpm test                                 # Vitest（vitest-pool-workers）
-docker compose exec app pnpm test:e2e                             # Playwright
+docker compose exec app pnpm test                                 # Vitest（純粋関数の単体テスト）
+docker compose exec app pnpm test:e2e                             # Playwright（仮想認証子でパスキー E2E）
 ```
 
 - ローカルは常に Miniflare のローカルエミュレーション。`--remote` は使わない。
 - `.wrangler/`（ローカル D1/R2/KV の状態）と `node_modules` は名前付きボリュームに載せ、ホストのファイル変更はバインドマウントでホットリロードする。
-- `.dev.vars`（Git 管理外）にローカル用のシークレットと `WEBAUTHN_*` を置く。
+- `.dev.vars`（Git 管理外。雛形は `.dev.vars.example`）にローカル用の `WEBAUTHN_*` を置く。
+- Docker を使わずホストで直接ツールを動かす場合は Node 22.22 以上が必要（React Router v8 の要件）。また `workerd` が動く新しめの glibc も要る。
 
-雛形（実装時に確定）：
+雛形（実際のファイルはリポジトリ直下）：
 
 ```yaml
 # docker-compose.yml
@@ -1010,7 +1017,7 @@ services:
       - node_modules:/app/node_modules
       - wrangler_state:/app/.wrangler
     env_file: [.dev.vars]
-    environment: [CLOUDFLARE_ENV=dev]   # dev の binding 定義を使う（状態はローカル）
+    environment: [CLOUDFLARE_ENV=staging]   # staging の binding 定義を使う（状態はローカル）
 volumes:
   node_modules:
   wrangler_state:
@@ -1039,50 +1046,47 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      RR_ENV: ${{ github.ref_name == 'main' && 'production' || 'dev' }}
+      CLOUDFLARE_ENV: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck && pnpm lint && pnpm test
-      - run: pnpm build
-      - run: pnpm wrangler d1 migrations apply DB --env "$RR_ENV" --remote
-      - run: pnpm wrangler deploy --env "$RR_ENV"
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build   # CLOUDFLARE_ENV で対象 env を焼き込み
+      - run: pnpm exec wrangler d1 migrations apply DB --env "$CLOUDFLARE_ENV" --remote
+      - run: pnpm exec wrangler deploy   # 焼き込み済みのため --env なし
 ```
 
-### 16.3 `wrangler.jsonc`（env 構成の骨子）
+### 16.3 `wrangler.jsonc`（env 構成）
+
+実ファイルはリポジトリ直下の `wrangler.jsonc`。構成は次のとおり（`$schema` / 詳細は実ファイル参照）。
 
 ```jsonc
 {
   "name": "nqkai",
-  "main": "workers/app.ts",
-  "compatibility_date": "2025-01-01",
+  "main": "./workers/app.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "./build/client" },
   "observability": { "enabled": true },
   "env": {
-    "dev": {
-      "name": "nqkai-dev",
-      "vars": {
-        "WEBAUTHN_RP_ID": "nqkai-dev.<subdomain>.workers.dev",
-        "WEBAUTHN_RP_NAME": "nQkai（dev）",
-        "WEBAUTHN_ORIGIN": "https://nqkai-dev.<subdomain>.workers.dev"
-      },
-      "d1_databases": [{ "binding": "DB", "database_name": "nqkai-dev", "database_id": "…", "migrations_dir": "migrations" }],
-      "r2_buckets":   [{ "binding": "BUCKET", "bucket_name": "nqkai-dev" }],
-      "kv_namespaces":[{ "binding": "KV", "id": "…" }]
+    "staging": {
+      "name": "nqkai-staging",           // → https://nqkai-staging.mckoy.workers.dev
+      "vars": { "WEBAUTHN_RP_ID": "nqkai-staging.mckoy.workers.dev", "WEBAUTHN_RP_NAME": "nQkai（staging）", "WEBAUTHN_ORIGIN": "https://nqkai-staging.mckoy.workers.dev" },
+      "d1_databases":  [{ "binding": "DB", "database_name": "nqkai-staging", "database_id": "1f1d1edc-…", "migrations_dir": "migrations" }],
+      "r2_buckets":    [{ "binding": "BUCKET", "bucket_name": "nqkai-staging" }],
+      "kv_namespaces": [{ "binding": "KV", "id": "3a75afdf…" }]
     },
     "production": {
-      "name": "nqkai",
-      "vars": {
-        "WEBAUTHN_RP_ID": "<本番ドメイン>",
-        "WEBAUTHN_RP_NAME": "nQkai",
-        "WEBAUTHN_ORIGIN": "https://<本番ドメイン>"
-      },
-      "d1_databases": [{ "binding": "DB", "database_name": "nqkai-prod", "database_id": "…", "migrations_dir": "migrations" }],
-      "r2_buckets":   [{ "binding": "BUCKET", "bucket_name": "nqkai-prod" }],
-      "kv_namespaces":[{ "binding": "KV", "id": "…" }]
+      "name": "nqkai-prod",              // → https://nqkai-prod.mckoy.workers.dev
+      "vars": { "WEBAUTHN_RP_ID": "nqkai-prod.mckoy.workers.dev", "WEBAUTHN_RP_NAME": "nQkai", "WEBAUTHN_ORIGIN": "https://nqkai-prod.mckoy.workers.dev" },
+      "d1_databases":  [{ "binding": "DB", "database_name": "nqkai-prod", "database_id": "6084cfde-…", "migrations_dir": "migrations" }],
+      "r2_buckets":    [{ "binding": "BUCKET", "bucket_name": "nqkai-prod" }],
+      "kv_namespaces": [{ "binding": "KV", "id": "a9c1955e…" }]
     }
   }
 }
@@ -1094,9 +1098,10 @@ jobs:
 | `BUCKET` | R2 | プロフィール画像 |
 | `KV` | KV | WebAuthn チャレンジ、レート制限 |
 
-- 名前付き env はトップレベルのバインディングを継承しないため、`dev` / `production` の両方に同じ 3 バインディングを再宣言する。
+- アカウントの workers.dev サブドメインは 1 つ（`mckoy`、他アプリと共有）。環境は Worker 名（`nqkai-staging` / `nqkai-prod`）で分ける。
+- 名前付き env はトップレベルのバインディングを継承しないため、`staging` / `production` の両方に同じ 3 バインディングを再宣言する。
 - 静的アセットは React Router の Cloudflare プリセットが `assets`（`build/client`）として配信するため、参照用の名前付きバインディングは不要。
-- 環境ごとのシークレット登録（初回のみ）：`wrangler secret put SESSION_SIGNING_KEY --env dev` / `--env production`。
+- 環境ごとのシークレット登録（初回のみ）：`wrangler secret put <NAME> --env staging` / `--env production`。
 
 ---
 

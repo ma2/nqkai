@@ -1,0 +1,35 @@
+name: deploy
+
+on:
+  push:
+    branches: [dev, main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # main → production、それ以外（dev ブランチ）→ staging。ビルドとデプロイの両方が参照する。
+      CLOUDFLARE_ENV: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      # CLOUDFLARE_ENV により build/server/wrangler.json に対象 env のバインディングが焼き込まれる
+      - run: pnpm build
+      # マイグレーションは後方互換（加算的変更）を原則とし、デプロイ前に適用する
+      - run: pnpm exec wrangler d1 migrations apply DB --env "$CLOUDFLARE_ENV" --remote
+      # 焼き込み済みの設定を使うため --env は付けない
+      - run: pnpm exec wrangler deploy
