@@ -1,0 +1,41 @@
+# 依存
+node_modules/
+.pnpm-store/
+
+# ビルド成果物
+dist/
+build/
+.output/
+
+# Cloudflare / Wrangler
+.wrangler/
+.dev.vars
+.dev.vars.*
+wrangler.toml.bak
+
+# D1 / SQLite ローカル
+*.sqlite
+*.sqlite3
+*.db
+
+# テスト
+coverage/
+playwright-report/
+test-results/
+.playwright/
+
+# ログ・一時ファイル
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# エディタ・OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# 環境変数
+.env
+.env.*
+!.env.example
