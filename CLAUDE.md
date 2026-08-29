@@ -8,7 +8,8 @@
 
 ## 技術スタック
 
-- 実行環境: Cloudflare Workers（単一 Worker）
+- 実行環境: Cloudflare Workers（単一 Worker）。dev / production の 2 環境（Wrangler environments）
+- ローカル: Docker（`docker compose` 上の `react-router dev` + Miniflare ローカルエミュレーション）
 - 言語: TypeScript
 - アプリフレームワーク: React Router v7（framework mode）。SSR + ネストルーティング + loader / action
 - ビルド: Vite + `@react-router/dev`（Cloudflare プリセット）
@@ -22,7 +23,7 @@
 - 型・バリデーション共有: Zod（`app/lib`）
 - Lint/Format: Biome
 - テスト: Vitest + `@cloudflare/vitest-pool-workers`、E2E は Playwright
-- デプロイ: Wrangler
+- デプロイ: GitHub Actions → Wrangler。`dev` ブランチ push → dev 環境、`main` ブランチ push（`dev` からのマージ）→ production 環境。`main` への直接 push はしない
 
 ### データの流れ
 
@@ -40,36 +41,25 @@
 
 ## 開発コマンド
 
+ローカルは Docker 前提（Node・pnpm・Wrangler はコンテナ内）。詳細は SPEC.md「16」。
+
 ```bash
-pnpm install
+docker compose build              # 初回・依存更新時
+docker compose up                 # 開発サーバ（http://localhost:5173）
 
-# ローカル開発（react-router dev。Workers ランタイム + ローカル D1/R2/KV）
-pnpm dev
-
-# 型の生成（ルート型 + バインディング型）
-pnpm typegen        # react-router typegen && wrangler types
-
-# D1 マイグレーション
-pnpm drizzle-kit generate
-pnpm wrangler d1 migrations apply nqkai --local
-pnpm wrangler d1 migrations apply nqkai --remote
-
-# seed（初期データ・システム管理者作成）
-pnpm seed:local
-
-# 型チェック / Lint / Format
-pnpm typecheck
-pnpm lint
-pnpm format
-
-# テスト
-pnpm test
-pnpm test:e2e
-
-# ビルド / デプロイ
-pnpm build           # react-router build
-pnpm wrangler deploy
+# 以降は実行中コンテナ内で
+docker compose exec app pnpm typegen                                # ルート型 + バインディング型
+docker compose exec app pnpm drizzle-kit generate                   # schema.ts → migrations/
+docker compose exec app pnpm wrangler d1 migrations apply DB --local
+docker compose exec app pnpm seed:local
+docker compose exec app pnpm typecheck
+docker compose exec app pnpm lint
+docker compose exec app pnpm test
+docker compose exec app pnpm test:e2e
 ```
+
+- ローカルは常に Miniflare のローカルエミュレーション。`--remote` は使わない（リモート D1/R2/KV に触れるのは CI のみ）。
+- デプロイは手動で叩かない。`dev` / `main` への push で GitHub Actions が `wrangler deploy --env <dev|production>` を実行する（マイグレーション先行適用込み）。
 
 ## プロジェクト構成
 
@@ -89,6 +79,10 @@ app/
 └─ styles/          Tailwind エントリ、縦書きユーティリティ
 migrations/         drizzle-kit 生成の D1 マイグレーション
 test/               server（Vitest）/ e2e（Playwright）
+wrangler.jsonc      env.dev / env.production（バインディングは各 env に再宣言）
+Dockerfile.dev / docker-compose.yml   ローカル開発
+.dev.vars           ローカル用シークレット（Git 管理外。雛形は .dev.vars.example）
+.github/workflows/deploy.yml   dev push → dev、main push → production
 ```
 
 ## アーキテクチャ指針

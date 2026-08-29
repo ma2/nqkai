@@ -11,7 +11,11 @@ build/
 .wrangler/
 .dev.vars
 .dev.vars.*
+!.dev.vars.example
 wrangler.toml.bak
+
+# React Router 生成物
+.react-router/
 
 # D1 / SQLite ローカル
 *.sqlite
