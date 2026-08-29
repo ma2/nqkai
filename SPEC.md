@@ -1,4 +1,4 @@
-# 句会Webアプリケーション 仕様書 Ver1.0.0
+# 句会Webアプリケーション 仕様書 Ver1.1.0
 
 オンラインで句会（くかい）を開催・管理できるWebアプリケーション。結社（けっしゃ）機能を持ち、パスキー認証によるセキュアなユーザー管理を行う。
 
@@ -48,11 +48,11 @@
 
 | 分類 | 採用技術 |
 |------|----------|
-| 実行環境 | Cloudflare Workers（単一Worker + Static Assets） |
+| 実行環境 | Cloudflare Workers（単一 Worker） |
 | 言語 | TypeScript |
-| バックエンドフレームワーク | Hono（`/api/*` の JSON API） |
-| フロントエンド | React（Vite ビルドの SPA） |
-| ルーティング（FE） | React Router |
+| アプリフレームワーク | React Router v7（framework mode）。SSR + ネストルーティング + loader / action |
+| ビルド | Vite + `@react-router/dev`（Cloudflare プリセット） |
+| UI ライブラリ | React |
 | データベース | Cloudflare D1（SQLite） |
 | ORM / マイグレーション | Drizzle ORM + drizzle-kit |
 | オブジェクトストレージ | Cloudflare R2（プロフィール画像） |
@@ -60,14 +60,22 @@
 | 認証 | パスキー（WebAuthn）。`@simplewebauthn/server` + `@simplewebauthn/browser` |
 | セッション | HttpOnly Cookie + D1 セッションテーブル（サーバ側でオペーク・トークンを検証） |
 | CSS | Tailwind CSS |
-| バリデーション / 型共有 | Zod（`src/shared` で FE/BE 共有） |
+| バリデーション / 型共有 | Zod（`app/lib` に置き、loader/action・フォームで共有） |
 | Lint / Format | Biome |
 | 単体・結合テスト | Vitest + `@cloudflare/vitest-pool-workers` |
 | E2E テスト | Playwright |
 | デプロイ | Wrangler（`wrangler deploy`） |
-| ローカル開発 | `@cloudflare/vite-plugin` による Vite + Workers 統合 dev サーバ |
+| ローカル開発 | `react-router dev`（Vite plugin 経由で Workers ランタイム + ローカル D1/R2/KV） |
 
-> バックエンドの技術選定（Drizzle / セッション方式 / WebAuthn ライブラリ等）は、本仕様書のレビュー時に再確認する前提の「たたき台」である。
+### なぜ React Router v7（framework mode）か
+
+- 想定規模が小さい（「12.2」）ため、性能ではなく**部品数の少なさ**でスタックを選ぶ。
+- 独立した JSON API + SPA + データ取得ライブラリの三層を、**loader（サーバ読み取り）/ action（サーバ書き込み）/ 自動再検証**に畳める。TanStack Query 相当は不要。
+- 公開ページ（`/u/:publicId` の個人俳句一覧、終了したパブリック句会）が **SSR** で共有・インデックス可能になる。
+- Cloudflare Workers を公式サポート。`getLoadContext` で D1 / R2 / KV バインディングを loader / action へ渡す。
+- fetch 駆動が必要な口（WebAuthn セレモニー、ポーリング、ファイルダウンロード、画像配信）だけ **リソースルート**（コンポーネントを持たず `Response` を返すルート）で用意する。
+
+> バックエンドの細部（Drizzle / セッション方式 / WebAuthn ライブラリ等）は、実装着手時に再確認する前提の「たたき台」である。
 
 ### 採用しないもの（明確な非採用）
 
@@ -83,26 +91,32 @@
 ### 3.1 全体像
 
 ```
-                 ┌──────────────────────────── Cloudflare Worker ─────────────────────────────┐
- ブラウザ ──────▶│  Hono app                                                                 │
- (React SPA)      │   ├─ GET  /api/*        … JSON API（認証・結社・句会・投句・選句 …）        │
-                  │   ├─ その他パス          … Static Assets バインディングへフォールバック     │
-                  │   │                        （SPA。存在しないパスは index.html を返す）      │
-                  │   └─ ミドルウェア         … セッション解決 / 権限チェック / レート制限        │
-                  │                                                                           │
-                  │   バインディング:  DB (D1)   BUCKET (R2)   KV (KV)   ASSETS (Static Assets)  │
-                  └───────────────────────────────────────────────────────────────────────────┘
+                 ┌─────────────────────────── Cloudflare Worker ────────────────────────────┐
+ ブラウザ ──────▶│  workers/app.ts  … React Router リクエストハンドラ                        │
+                  │    │  getLoadContext で D1 / R2 / KV を loader・action へ注入             │
+                  │    ├─ ページルート    … loader（読み取り）/ action（書き込み）/ SSR      │
+                  │    │                     初回は HTML を返し、以降はクライアント遷移       │
+                  │    ├─ リソースルート  … /api/*（WebAuthn・ポーリング・DL・画像配信）      │
+                  │    └─ 静的アセット    … Vite ビルド成果物（RR が配信）                    │
+                  │                                                                          │
+                  │   バインディング:  DB (D1)   BUCKET (R2)   KV (KV)                        │
+                  └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **1 Worker に FE と BE を同居**させる。React のビルド成果物は Static Assets として配信し、`/api/*` 以外の GET は SPA エントリ（`index.html`）にフォールバックする。
-- API は REST 準拠の JSON。リクエスト／レスポンスの型は `src/shared` の Zod スキーマから導出し、FE の fetch ラッパで再利用する。
-- ドメインロジックは `src/worker/services` に集約し、ルートハンドラは「入力検証 → サービス呼び出し → 整形」に徹する。
+- **1 Worker がアプリ全体**。React Router の `createRequestHandler` を Worker の `fetch` にぶら下げる。フロントとバックの境界は「ルートモジュール内の server 関数（loader/action）」と「client コンポーネント」。
+- データの流れ：
+  - **読み取り** … 各ルートの `loader`（Worker 上で実行）が Drizzle で D1 を直接引く。クライアント遷移時は RR がバックグラウンドで loader を再実行。
+  - **書き込み** … `<Form>` / `useFetcher` → ルートの `action`（Worker 上で実行）。完了後、RR が同一ページの loader を自動再検証する。
+  - **fetch 駆動の口** … WebAuthn セレモニー、句会状態のポーリング、エクスポートのダウンロード、画像配信のみ `/api/*` の**リソースルート**で提供。
+- リクエスト／レスポンスと入力の型は `app/lib` の Zod スキーマから導出し、action の検証とフォーム側の検証で共有する。
+- ドメインロジックは `app/server/services/*.server.ts` に集約し、loader / action は「入力検証 → サービス呼び出し → 整形」に徹する。
+- 認証・権限は loader / action から呼ぶ `getAuth()` / `authorize()` ヘルパ（`*.server.ts`）に集約。共通の前処理が増えたら React Router の middleware に切り出す。
 
 ### 3.2 環境
 
 | 環境 | 用途 | D1 | 備考 |
 |------|------|----|------|
-| local | 開発 | ローカル D1（Miniflare） | `vite dev` + Workers |
+| local | 開発 | ローカル D1（Miniflare） | `react-router dev`（Workers ランタイム） |
 | preview | PR / 動作確認 | preview 用 D1 | Wrangler の環境設定で分離 |
 | production | 本番 | 本番 D1 | `wrangler deploy` |
 
@@ -118,37 +132,48 @@
 ├─ SPEC.md                       本仕様書
 ├─ package.json
 ├─ pnpm-lock.yaml
-├─ wrangler.jsonc                Worker 設定・バインディング
-├─ vite.config.ts               @cloudflare/vite-plugin
+├─ wrangler.jsonc                Worker 設定・バインディング（DB / BUCKET / KV）
+├─ react-router.config.ts        RR 設定（ssr: true、Cloudflare プリセット）
+├─ vite.config.ts               @react-router/dev + Cloudflare plugin
 ├─ tsconfig.json
 ├─ tailwind.config.ts
 ├─ biome.json
 ├─ drizzle.config.ts
 ├─ migrations/                   drizzle-kit が生成する D1 マイグレーション SQL
-├─ src/
-│  ├─ worker/                    Hono バックエンド
-│  │  ├─ index.ts                エントリ（Hono app、assets フォールバック）
-│  │  ├─ routes/                 機能別ルータ（auth, orgs, kukai, submissions, …）
-│  │  ├─ middleware/             session / authz / rate-limit / error
-│  │  ├─ services/               ドメインロジック（権限判定・フェーズ遷移・集計 …）
-│  │  ├─ db/
-│  │  │  ├─ schema.ts            Drizzle スキーマ定義
-│  │  │  └─ client.ts            drizzle(d1) の生成
-│  │  └─ lib/                    webauthn / session / csv / export / id
-│  ├─ client/                    React SPA
-│  │  ├─ main.tsx
-│  │  ├─ routes/                 画面（ルート）コンポーネント
-│  │  ├─ features/               機能単位のコンポーネント群
-│  │  ├─ components/             汎用 UI（縦書きコンポーネント含む）
-│  │  ├─ api/                    fetch ラッパ + 型付きクライアント
-│  │  ├─ hooks/                  usePolling など
-│  │  └─ styles/                 Tailwind エントリ、縦書きユーティリティ
-│  └─ shared/                    Zod スキーマ・型・定数・enum（FE/BE 共有）
+├─ workers/
+│  └─ app.ts                     Worker エントリ（RR ハンドラ + getLoadContext でバインディング注入）
+├─ app/
+│  ├─ root.tsx                   ルートレイアウト（<html>、エラーバウンダリ、通知ベル）
+│  ├─ routes.ts                  ルート定義
+│  ├─ routes/                    ルートモジュール（loader / action / default コンポーネント）
+│  │  ├─ _index.tsx              ダッシュボード
+│  │  ├─ orgs.$orgId.tsx         結社詳細            ほか画面ルート
+│  │  ├─ kukai.$kukaiId.tsx      句会トップ（フェーズ別 UI）
+│  │  ├─ kukai.$kukaiId.select.tsx  選句シート
+│  │  ├─ api.auth.$.ts           WebAuthn セレモニー（リソースルート）
+│  │  ├─ api.kukai.$kukaiId.state.ts  ポーリング用の軽量状態（リソースルート）
+│  │  ├─ api.avatars.$userId.ts  R2 から画像を stream（リソースルート）
+│  │  └─ api.kukai.$kukaiId.export.ts  テキスト / CSV ダウンロード（リソースルート）
+│  ├─ server/                    サーバ専用（*.server.ts のみ）
+│  │  ├─ db/schema.ts            Drizzle スキーマ定義
+│  │  ├─ db/client.server.ts     drizzle(env.DB) の生成
+│  │  ├─ auth.server.ts          getAuth() / セッション発行・破棄 / WebAuthn
+│  │  ├─ authz.server.ts         権限判定（ロール・フェーズ・所有者チェック）
+│  │  ├─ ratelimit.server.ts     KV レートリミッタ
+│  │  └─ services/               ドメインロジック（フェーズ遷移・集計・CSV・エクスポート …）
+│  ├─ components/                汎用 UI（縦書きコンポーネント含む）
+│  ├─ features/                  機能単位のコンポーネント群
+│  ├─ hooks/                     useKukaiStatePolling など
+│  ├─ lib/                       Zod スキーマ・型・定数・enum（サーバ / クライアント共有）
+│  └─ styles/                    Tailwind エントリ、縦書きユーティリティ
 ├─ test/
-│  ├─ worker/                    Vitest（vitest-pool-workers）
+│  ├─ server/                    Vitest（vitest-pool-workers）：loader / action / services
 │  └─ e2e/                       Playwright
 └─ public/                       favicon 等の静的ファイル
 ```
+
+- `*.server.ts` と `app/server/` 配下は RR のバンドラがクライアントバンドルから除外する。D1 / R2 / KV アクセスや秘密情報はここに閉じ込める。
+- `app/lib` は両側から import される。Zod スキーマ・enum・純粋関数のみを置き、サーバ専用の依存を持ち込まない。
 
 ---
 
@@ -159,6 +184,8 @@
 - ユーザー登録は必須。ID/パスワードは持たず、認証子（パスキー）のみで認証する。
 - ライブラリ：サーバ `@simplewebauthn/server`、ブラウザ `@simplewebauthn/browser`。
 - RP 設定は環境変数（`WEBAUTHN_RP_ID`, `WEBAUTHN_RP_NAME`, `WEBAUTHN_ORIGIN`）。
+
+WebAuthn セレモニーは `@simplewebauthn/browser` から fetch で叩くため、`/api/auth/*` の**リソースルート**（`app/routes/api.auth.$.ts`）として実装する。
 
 #### 登録フロー（新規ユーザー）
 
@@ -182,7 +209,7 @@
 - ログイン成功時、ランダム 32 バイトのトークンを生成。**ハッシュ（SHA-256）を `sessions.id` に保存**し、生トークンを Cookie で配布する。
 - Cookie 名：`__Host-session`。属性：`Secure; HttpOnly; SameSite=Lax; Path=/`。
 - 有効期限：発行から 30 日（`sessions.expires_at`）。アクセスごとにスライド延長（残り 7 日を切ったら再発行）。
-- ミドルウェア `session` が毎リクエストで Cookie → `sessions` → `users`（会員）またはゲストコンテキストを解決し、`c.set('auth', …)` に載せる。
+- loader / action から呼ぶ `getAuth(request, context)` が Cookie → `sessions` → `users`（会員）またはゲストコンテキストを解決して返す。認証必須ルートでは未解決なら `/login` へ `redirect`、権限不足なら 403 を throw する。共通前処理が増えたら React Router の middleware に移す。
 - ログアウトは該当セッション行を削除。「全端末からログアウト」で当該ユーザーの全セッションを削除。
 
 ### 5.3 ゲストセッション
@@ -239,7 +266,7 @@
 | コメント | — | 参加者として | 参加者として | 参加者として | 参加者として | 許可時のみ |
 | 自分の投句の削除 | ✓ | — | — | 自句のみ | 自句のみ | 締切前の自句のみ |
 
-権限判定は `src/worker/services/authz.ts` に集約し、ルートで宣言的に呼び出す。
+権限判定は `app/server/authz.server.ts` に集約し、loader / action から宣言的に呼び出す。
 
 ---
 
@@ -653,91 +680,96 @@ Submission ||--o{ Comment
 
 ---
 
-## 10. API設計
+## 10. ルーティングとデータ規約
 
-- ベースパス `/api`。認証は Cookie セッション。CSRF 対策として、状態変更系（POST/PUT/PATCH/DELETE）は `Origin` / `Sec-Fetch-Site` を検証し、`SameSite=Lax` Cookie と併用する。
-- レスポンスは `{ data: ... }` または `{ error: { code, message, details? } }`。
-- バリデーションエラーは 422、認証切れは 401、権限不足は 403、未存在は 404、フェーズ不整合などの業務エラーは 409。
-- 一覧は `?limit=&cursor=` のカーソルページング。
+データの入出力は、原則として**画面ルートの loader / action** で行う。fetch 駆動が避けられない口だけを **`/api/*` のリソースルート**にする。
 
-### 10.1 エンドポイント一覧（抜粋）
+### 10.1 規約
 
-| メソッド・パス | 概要 | 権限 |
+- **読み取り（loader）**：画面が必要とするデータを1つの loader でまとめて返す。所属・権限は `getAuth()` → `authorize()` で判定し、不足は `redirect('/login')` または `throw new Response(null, { status: 403 })`。
+- **書き込み（action）**：`<Form>` / `useFetcher` から呼ぶ。入力は `app/lib` の Zod スキーマで `safeParse`。失敗は `{ fieldErrors }` を 422 相当で返し、フォームが表示。成功後は RR が同ページの loader を自動再検証する（明示的なキャッシュ無効化は不要）。
+- **業務エラー**：フェーズ不整合・上限超過などは `data({ error }, { status: 409 })` で返し、UI がメッセージ表示。
+- **一覧**：件数が小さい（「12.2」）ため基本は一括取得。投句一覧・通知など増え得るものだけ `?cursor=` のカーソルページング。
+- **CSRF**：状態変更は POST のみ。`Origin` / `Sec-Fetch-Site` を検証し、`__Host-` + `SameSite=Lax` Cookie と併用。
+- **リソースルート**：`loader` のみ（または `action` のみ）を持ち `Response` を返す。WebAuthn・ポーリング・ダウンロード・画像配信に限定。
+
+### 10.2 画面ルートと loader / action（抜粋）
+
+| ルート | loader が返すもの | action（書き込み） | 権限 |
+|--------|-------------------|--------------------|------|
+| `_index`（`/`） | 所属結社、進行中の句会、未読通知数 | 通知の既読化 | 会員 |
+| `login` / `register` | — | （WebAuthn はリソースルート） | 未認証 |
+| `settings` | プロフィール、登録済み認証子一覧 | 俳号更新 / 画像更新・削除 / 認証子削除 / 退会 / 全端末ログアウト | 本人 |
+| `orgs`（`/orgs`） | 結社一覧 | 結社作成 | 一覧:公開 / 作成:会員 |
+| `orgs.$orgId` | 結社詳細、メンバー数、開催中の句会、自分の申請状態 | 参加申請 / 申請取り下げ / 自主退会 | 詳細:公開 |
+| `orgs.$orgId.admin` | 参加申請一覧、メンバー一覧、句会一覧、インポート履歴 | 結社情報編集 / 申請の承認・却下 / 強制退会 / 副管理者の任免 / 閉鎖・再開 / CSV インポート | 管理者・副管理者（閉鎖は管理者） |
+| `orgs.$orgId.kukai.new` | 作成フォームの初期値 | 句会作成 | メンバー |
+| `kukai.$kukaiId` | 句会情報、現在フェーズ、参加状態、自分の投句、（フェーズに応じ）結果 | フェーズ遷移（advance / rewind / extend）/ 作者公開 / 論理削除・復活 / 設定変更 / 句の非表示切替 / ゲストコード発行・失効 | 閲覧:閲覧可能者 / 変更:主催者 |
+| `kukai.$kukaiId.submit` | 自分の投句、投句上限、締切 | 投句の追加・修正・削除（`submission` フェーズ、上限、自句のみ） | 参加者 |
+| `kukai.$kukaiId.select` | 選句シート（ランダム順、自句・非表示除外）、自分の選句とコメント | 選句の設定・解除、コメントの投稿・編集 | 参加者（`selection` フェーズ、種別上限、自句禁止） |
+| `kukai.$kukaiId.results` | 集計結果、順位、選者内訳、（公開後）作者、全コメント | 追加コメント（`commenting` フェーズ） | 閲覧可能者（`result` 以降） |
+| `guest`（`/guest?code=`） | コードの有効性・対象句会の概要 | ゲスト参加 | 未認証（コード必須） |
+| `u.$publicId` | 本人の投句一覧（句会名・兼題・日付・得点） | — | 公開 |
+| `admin.*` | 全結社・全句会・全ユーザー | コンテンツ削除 / アカウント停止・削除 / 閉鎖の強制解除 / 句会の論理削除・復活 | システム管理者 |
+
+### 10.3 リソースルート（`/api/*`）
+
+| メソッド・パス | 用途 | 権限 |
 |----------------|------|------|
-| `POST /api/auth/register/options` `.../verify` | パスキー登録 | 未認証 |
-| `POST /api/auth/login/options` `.../verify` | パスキーログイン | 未認証 |
-| `POST /api/auth/logout` | ログアウト | 本人 |
-| `GET  /api/auth/credentials` / `POST .../options` `.../verify` / `DELETE .../:id` | 認証子の管理 | 本人 |
-| `GET  /api/me` / `PATCH /api/me` | 自分のプロフィール取得・更新 | 本人 |
-| `POST /api/me/avatar` / `DELETE /api/me/avatar` | プロフィール画像 | 本人 |
-| `POST /api/me/withdraw` | 退会 | 本人 |
-| `GET  /api/avatars/:userId` | 画像配信 | 公開 |
-| `GET  /api/organizations` / `POST /api/organizations` | 結社一覧・作成 | 一覧:公開 / 作成:会員 |
-| `GET  /api/organizations/:id` / `PATCH` | 結社詳細・編集 | 詳細:公開 / 編集:管理者・副管理者 |
-| `POST /api/organizations/:id/close` / `.../reopen` | 閉鎖・再開 | 管理者（再開はシステム管理者も） |
-| `POST /api/organizations/:id/join-requests` | 参加申請 | 会員 |
-| `GET  /api/organizations/:id/join-requests` | 申請一覧 | 管理者・副管理者 |
-| `POST /api/join-requests/:id/approve` / `.../reject` | 承認・却下 | 管理者・副管理者 |
-| `GET  /api/organizations/:id/members` / `DELETE .../members/:userId` | メンバー一覧・強制退会 | 一覧:メンバー / 退会:管理者・副管理者 |
-| `POST /api/organizations/:id/members/:userId/role` | 副管理者の任免 | 管理者 |
-| `POST /api/organizations/:id/leave` | 自主退会 | 本人 |
-| `POST /api/organizations/:id/imports` / `GET .../imports/:importId` | CSV インポート | 管理者・副管理者 |
-| `GET  /api/organizations/:id/kukai` / `POST /api/organizations/:id/kukai` | 句会一覧・作成 | 一覧:閲覧可能者 / 作成:メンバー |
-| `GET  /api/kukai/:id` / `PATCH /api/kukai/:id` | 句会詳細・設定変更 | 詳細:閲覧可能者 / 変更:主催者 |
-| `GET  /api/kukai/:id/state` | 軽量ポーリング用の状態 | 閲覧可能者 |
-| `POST /api/kukai/:id/phase` | フェーズ遷移（advance / rewind / extend） | 主催者 |
-| `POST /api/kukai/:id/reveal-authors` | 作者公開 | 主催者 |
-| `POST /api/kukai/:id/delete` / `.../restore` | 論理削除・復活 | 主催者・結社管理者・副管理者 |
-| `GET  /api/kukai/:id/submissions` / `POST` | 投句一覧・投句 | 閲覧可能者 / 参加者（フェーズ・上限・権限チェック） |
-| `PATCH /api/submissions/:id` / `DELETE /api/submissions/:id` | 投句の修正・削除 | 作者本人（`submission` フェーズのみ） |
-| `POST /api/submissions/:id/hide` / `.../unhide` | 非表示切替 | 主催者 |
-| `GET  /api/kukai/:id/selection-sheet` | 選句用シート（ランダム順、自句・非表示除外） | 参加者 |
-| `PUT  /api/submissions/:id/selection` / `DELETE` | 選句の設定・解除 | 参加者（`selection` フェーズ、種別上限、自句禁止） |
-| `GET  /api/kukai/:id/results` | 集計結果 | 閲覧可能者（`result` 以降） |
-| `GET  /api/submissions/:id/comments` / `POST` | コメント一覧・投稿 | フェーズにより可視範囲が変化 |
-| `GET  /api/kukai/:id/guest-codes` / `POST` / `POST .../:codeId/revoke` | ゲストコード管理 | 主催者 |
-| `POST /api/guest/join` | ゲスト参加 | 未認証（コード必須） |
-| `GET  /api/kukai/:id/export?format=text|csv` | 句会エクスポート | 主催者・結社管理者・副管理者 |
-| `GET  /api/u/:publicId/haiku` / `?format=text` | 個人俳句一覧・エクスポート | 公開（本人のみ format 指定可） |
-| `GET  /api/notifications` / `POST .../:id/read` / `POST .../read-all` | 通知 | 本人 |
-| `GET  /api/admin/organizations` `/api/admin/kukai` `/api/admin/users` ほか | システム管理 | システム管理者 |
+| `POST /api/auth/register/options` `.../verify` | パスキー登録セレモニー | 未認証 |
+| `POST /api/auth/login/options` `.../verify` | パスキーログインセレモニー | 未認証 |
+| `POST /api/auth/credentials/options` `.../verify` | 認証子の追加セレモニー | 本人 |
+| `GET  /api/kukai/:kukaiId/state` | 軽量ポーリング用の状態（`phase` / `authors_revealed_at` / 各種カウンタ / `server_time`） | 閲覧可能者 |
+| `GET  /api/avatars/:userId` | R2 からプロフィール画像を stream（`Cache-Control` 付与） | 公開 |
+| `GET  /api/kukai/:kukaiId/export?format=text\|csv` | 句会エクスポートのダウンロード | 主催者・結社管理者・副管理者 |
+| `GET  /api/u/:publicId/haiku.txt` | 個人俳句エクスポート（テキスト）のダウンロード | 本人 |
 
-### 10.2 型共有
+> ログアウトは `settings` の action で処理するため専用エンドポイントは持たない。画像アップロードも `settings` の action（multipart）で受ける。
 
-- リクエスト／レスポンスの Zod スキーマを `src/shared/schemas/*` に定義。
-- BE：Hono の `zValidator` で入力検証。FE：`src/client/api` の関数が同じスキーマで `parse` する。
-- enum（フェーズ、ロール、通知種別、選句種別）は `src/shared/constants.ts` に集約。
+### 10.4 型共有
+
+- 入力・レスポンス整形の Zod スキーマを `app/lib/schemas/*` に定義。action の `safeParse` とフォーム側のクライアント検証で同一スキーマを使う。
+- enum（フェーズ、ロール、通知種別、選句種別）は `app/lib/constants.ts` に集約。
+- loader / action の戻り値型は `useLoaderData<typeof loader>()` / `useActionData<typeof action>()` で自動推論。`react-router typegen` で `.react-router/types` を生成する。
 
 ---
 
 ## 11. フロントエンド設計
 
-### 11.1 ルーティング（React Router、抜粋）
+### 11.1 ルーティング（React Router v7 framework mode、抜粋）
 
-| パス | 画面 | 認証 |
-|------|------|------|
-| `/` | ダッシュボード（所属結社、進行中の句会、通知） | 要 |
-| `/login` `/register` | パスキー認証 | 不要 |
-| `/settings` | プロフィール・パスキー管理 | 要 |
-| `/orgs` `/orgs/new` `/orgs/:id` | 結社一覧・作成・詳細 | 詳細は一部公開 |
-| `/orgs/:id/admin` | 結社管理（申請・メンバー・句会・インポート） | 管理者・副管理者 |
-| `/orgs/:id/kukai/new` | 句会作成 | メンバー |
-| `/kukai/:id` | 句会トップ（フェーズ別 UI） | 閲覧可能者 |
-| `/kukai/:id/submit` | 投句 | 参加者 |
-| `/kukai/:id/select` | 選句（縦書きシート） | 参加者 |
-| `/kukai/:id/results` | 結果・講評 | 閲覧可能者 |
-| `/kukai/:id/manage` | 句会管理（フェーズ制御・非表示・ゲストコード） | 主催者 |
-| `/guest?code=...` | ゲスト参加 | 不要 |
-| `/u/:publicId` | 個人俳句一覧（公開） | 不要 |
-| `/admin/*` | システム管理 | システム管理者 |
+`app/routes.ts` で定義。URL と画面の対応は次の通り（loader / action の内容は「10.2」）。
 
-### 11.2 状態管理・データ取得
+| URL | ルートモジュール | 画面 | 認証 |
+|-----|------------------|------|------|
+| `/` | `routes/_index.tsx` | ダッシュボード（所属結社、進行中の句会、通知） | 要 |
+| `/login` `/register` | `routes/login.tsx` `routes/register.tsx` | パスキー認証 | 不要 |
+| `/settings` | `routes/settings.tsx` | プロフィール・パスキー管理 | 要 |
+| `/orgs` `/orgs/new` `/orgs/:orgId` | `routes/orgs._index.tsx` ほか | 結社一覧・作成・詳細 | 詳細は一部公開 |
+| `/orgs/:orgId/admin` | `routes/orgs.$orgId.admin.tsx` | 結社管理（申請・メンバー・句会・インポート） | 管理者・副管理者 |
+| `/orgs/:orgId/kukai/new` | `routes/orgs.$orgId.kukai.new.tsx` | 句会作成 | メンバー |
+| `/kukai/:kukaiId` | `routes/kukai.$kukaiId.tsx` | 句会トップ（フェーズ別 UI、主催者は管理パネルも同画面） | 閲覧可能者 |
+| `/kukai/:kukaiId/submit` | `routes/kukai.$kukaiId.submit.tsx` | 投句 | 参加者 |
+| `/kukai/:kukaiId/select` | `routes/kukai.$kukaiId.select.tsx` | 選句（縦書きシート） | 参加者 |
+| `/kukai/:kukaiId/results` | `routes/kukai.$kukaiId.results.tsx` | 結果・講評 | 閲覧可能者 |
+| `/guest` | `routes/guest.tsx` | ゲスト参加（`?code=`） | 不要 |
+| `/u/:publicId` | `routes/u.$publicId.tsx` | 個人俳句一覧（公開・SSR） | 不要 |
+| `/admin/*` | `routes/admin.tsx` ほか | システム管理 | システム管理者 |
 
-- サーバ状態は TanStack Query（`@tanstack/react-query`）。ミューテーション成功時に関連クエリを invalidate。
-- 句会画面では `useKukaiState(kukaiId)` フックが `GET /api/kukai/:id/state` を `refetchInterval: 15000`・`refetchIntervalInBackground: false` でポーリング。`phase` や主要カウンタの変化を検知したら関連クエリを invalidate する。
-- 認証状態は `GET /api/me` の結果をアプリ全体で共有。401 を受けたら `/login` へ。
+- 句会管理は専用 URL を分けず、`/kukai/:kukaiId` の中で主催者にだけ管理 UI を出す（loader が権限に応じて返すデータを変える）。
 
-### 11.3 縦書き表示
+### 11.2 データ取得・状態
+
+- **サーバ状態は RR の loader が担う**。専用のデータ取得ライブラリ（TanStack Query 等）は使わない。ミューテーション（action）成功後は RR が loader を自動再検証する。
+- **認証状態**は `root.tsx` の loader が返す（俳号・アバター・未読通知数・システム管理者フラグ）。子ルートは `useRouteLoaderData('root')` で参照。未認証で保護ルートに入ったら loader が `/login` へ `redirect`。
+- **ポーリング**：`useKukaiStatePolling(kukaiId)` フックが `useFetcher` で `GET /api/kukai/:kukaiId/state` を約 15 秒間隔で取得。`phase` や主要カウンタが前回値から変化したら `useRevalidator().revalidate()` でそのページの loader を再実行する。`document.visibilityState === 'hidden'` の間はポーリングを止める。
+- **楽観的更新**：選句のトグルなど即応性が要る操作は `useFetcher` の `fetcher.formData` を使って送信中の状態を先行描画する。
+
+### 11.3 クライアント状態の最小化
+
+- グローバルなクライアント状態管理ライブラリは導入しない。UI ローカル状態は `useState`、URL に載せられるもの（タブ・フィルタ）は検索パラメータに置く。
+
+### 11.4 縦書き表示
 
 - Tailwind に縦書きユーティリティを追加：
   - `.tategaki { writing-mode: vertical-rl; text-orientation: upright; line-break: strict; }`
@@ -745,7 +777,7 @@ Submission ||--o{ Comment
 - 句カード／選句シート／個人俳句一覧は縦書き。管理系 UI は横書き。
 - モバイルファースト。縦書きブロックは横スクロール可能なコンテナに入れる。
 
-### 11.4 その他 UI 要件
+### 11.5 その他 UI 要件
 
 - レスポンシブ（モバイル対応必須）。
 - モダンブラウザ全般に対応。オフライン非対応。スマホネイティブアプリは作らない。
@@ -758,16 +790,19 @@ Submission ||--o{ Comment
 
 | 項目 | 制約 | 方針 |
 |------|------|------|
-| Workers CPU 時間 | リクエストあたり上限あり | 集計・エクスポート・CSV インポートは重い処理を分割。N+1 を避け D1 クエリをまとめる |
-| D1 | SQLite。書き込みは直列。1クエリの結果サイズ・バインド数に上限 | 一覧はページング。バルク投入はバッチ（`batch()`）分割 |
+| Workers CPU 時間 | リクエストあたり上限あり | SSR レンダリングは軽量に保つ。集計・エクスポート・CSV インポートは重い処理を分割。loader での N+1 を避け D1 クエリをまとめる |
+| D1 | SQLite。書き込みは直列。1クエリの結果サイズ・バインド数に上限 | 想定規模では上限に当たらない（「12.2」）。バルク投入のみバッチ（`batch()`）分割 |
 | サブリクエスト数 | 1リクエストで上限あり | R2 への多数アクセスを避け、画像は1リクエスト1オブジェクト |
 | Cron / バックグラウンド | 本仕様では不使用 | 期限切れセッション掃除はアクセス時の遅延削除、または管理スクリプト |
-| リアルタイム | DO/WS 不使用 | ポーリング（「8.4」） |
+| リアルタイム | DO/WS 不使用 | ポーリング（「8.4」「11.2」） |
 
-### 12.2 性能
+### 12.2 規模の想定
 
-- 同時参加者数・同時開催句会数に固定上限は設けない（D1 の書き込み直列性がボトルネックになり得る点は運用で監視）。
-- 一覧 API はカーソルページング必須。
+- **結社数：最大 100 未満。1 結社あたりのメンバー数：最大 100 人（多くは 20〜30 人）。**
+- 総ユーザー数はおおむね数千人、最大でも 1 万人規模。DB サイズは数年運用しても数十 MB。1 句会あたりの行数は投句・選句・コメントいずれも数百以内。
+- 書き込みの集中は「選句フェーズで 20〜30 人が数分の間に選句する」程度で、ピークでも毎秒 1 未満。**D1（SQLite 単一ライター）で詰まらない。**
+- したがって性能・スケールはスタック選定の決め手にせず、運用の単純さ・コスト・記述量で選ぶ（「2. 技術スタック」）。実運用コストは Cloudflare 無料枠〜有料 $5/月の見込み。
+- 一覧はほぼ一括取得でよい。投句一覧・通知など将来的に増え得るものだけカーソルページングを用意する。
 
 ### 12.3 セキュリティ
 
@@ -793,7 +828,7 @@ Submission ||--o{ Comment
 |------|---------------|-------------------|
 | 実行基盤 | Rails サーバ | Cloudflare Workers（単一 Worker） |
 | 言語 | Ruby | TypeScript |
-| API/ビュー | Rails MVC + Turbo/Stimulus | Hono JSON API + React SPA |
+| アプリ構成 | Rails MVC + Turbo/Stimulus | React Router v7（framework mode）。loader / action + SSR、fetch 駆動の口のみ `/api/*` リソースルート |
 | DB | SQLite（自前） | Cloudflare D1 |
 | ORM | Active Record | Drizzle ORM |
 | 認証実装 | Rails + パスキー gem | `@simplewebauthn/*` + D1 セッション |
@@ -837,11 +872,12 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 
 ### フェーズ1：基盤
 
-- Wrangler / Vite / D1 / R2 / KV のセットアップ、`wrangler.jsonc` バインディング
+- React Router v7（framework mode）+ Cloudflare プリセットの雛形作成、`workers/app.ts` の `getLoadContext` でバインディング注入
+- Wrangler / Vite / D1 / R2 / KV のセットアップ、`wrangler.jsonc` バインディング、`react-router typegen` / `wrangler types`
 - Drizzle スキーマ + 初期マイグレーション + seed
-- パスキー登録・ログイン・セッション・認証子管理
+- パスキー登録・ログイン・セッション・認証子管理（`/api/auth/*` リソースルート + `auth.server.ts`）
 - ユーザーモデル（俳号、プロフィール画像 = R2）
-- ログイン / 登録 / ダッシュボードの基本 UI、レスポンシブ土台、縦書きユーティリティ
+- `root.tsx` レイアウト（認証状態 loader、通知ベル、エラーバウンダリ）、ログイン / 登録 / ダッシュボード、レスポンシブ土台、縦書きユーティリティ
 
 ### フェーズ2：結社
 
@@ -888,7 +924,8 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 - 論理削除の仕組みを早期に入れる。
 - データモデルは初期段階で固める。
 - 各フェーズでテストを書く。
-- モデル（`src/worker/db/schema.ts`）を変更したら本仕様書の「7. データモデル」を更新する。
+- モデル（`app/server/db/schema.ts`）を変更したら本仕様書の「7. データモデル」を更新する。
+- ルート（`app/routes.ts`）や loader / action の入出力を変更したら「10. ルーティングとデータ規約」を更新する。
 
 ---
 
@@ -900,11 +937,14 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 # 依存インストール
 pnpm install
 
-# ローカル開発（Vite + Workers 統合。D1/R2/KV はローカルエミュレーション）
+# ローカル開発（react-router dev。Workers ランタイム + ローカル D1/R2/KV）
 pnpm dev
 
+# 型の生成（ルート型 + バインディング型）
+pnpm typegen        # react-router typegen && wrangler types
+
 # D1 マイグレーション
-pnpm drizzle-kit generate           # schema.ts から migrations/ を生成
+pnpm drizzle-kit generate           # app/server/db/schema.ts から migrations/ を生成
 pnpm wrangler d1 migrations apply nqkai --local     # ローカル適用
 pnpm wrangler d1 migrations apply nqkai --remote    # 本番適用
 
@@ -922,7 +962,7 @@ pnpm test            # Vitest（vitest-pool-workers）
 pnpm test:e2e        # Playwright
 
 # ビルド / デプロイ
-pnpm build
+pnpm build           # react-router build
 pnpm wrangler deploy
 
 # シークレット登録（例）
@@ -936,7 +976,8 @@ pnpm wrangler secret put SESSION_SIGNING_KEY
 | `DB` | D1 | 主データベース |
 | `BUCKET` | R2 | プロフィール画像 |
 | `KV` | KV | WebAuthn チャレンジ、レート制限 |
-| `ASSETS` | Static Assets | React ビルド成果物の配信 |
+
+静的アセットは React Router の Cloudflare プリセットが `assets`（`build/client`）として配信するため、参照用の名前付きバインディングは不要。
 
 環境変数：`WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN`、シークレット：`SESSION_SIGNING_KEY` ほか。
 
@@ -946,7 +987,8 @@ pnpm wrangler secret put SESSION_SIGNING_KEY
 
 - **権限境界**：システム管理者・結社管理者・副管理者・メンバー・句会主催者・ゲスト・未認証の各ロールで、許可／拒否を網羅的にテスト。
 - **フェーズ遷移**：`advance` / `rewind` / `extend` の各遷移、フェーズ外操作の拒否（投句を `submission` 以外で行う等）、締切時のシャッフル。
-- **匿名性**：`authors_revealed_at` 未設定時に作者情報が API レスポンスへ漏れないこと。
+- **loader / action**：各ルートの loader / action を、モックした `Request` + `context`（テスト用 D1）で直接呼び、返り値・リダイレクト・ステータスを検証する。
+- **匿名性**：`authors_revealed_at` 未設定時に作者情報が loader / リソースルートのレスポンスへ漏れないこと。
 - **選句ルール**：自句選句の拒否、種別上限の超過、選び直し・取り消し、非表示句の除外、集計スコア（逆選の負値含む）。
 - **ゲスト**：コードの期限切れ・失効・上限超過、権限スナップショット、連番表示名、1セッションでの複数句会並行参加、`:kukaiId` による権限スコープ、未参加句会への操作拒否、あるコード失効が他句会に波及しないこと。
 - **エクスポート／インポート**：テキスト / CSV の内容と文字コード、CSV インポートの行単位検証と履歴。

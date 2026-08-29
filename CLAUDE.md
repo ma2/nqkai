@@ -8,20 +8,28 @@
 
 ## 技術スタック
 
-- 実行環境: Cloudflare Workers（単一 Worker + Static Assets）
+- 実行環境: Cloudflare Workers（単一 Worker）
 - 言語: TypeScript
-- バックエンド: Hono（`/api/*` の JSON API）
-- フロントエンド: React + Vite（SPA）、React Router、TanStack Query
+- アプリフレームワーク: React Router v7（framework mode）。SSR + ネストルーティング + loader / action
+- ビルド: Vite + `@react-router/dev`（Cloudflare プリセット）
+- UI: React
 - データベース: Cloudflare D1（SQLite）
 - ORM: Drizzle ORM + drizzle-kit
 - ストレージ: Cloudflare R2（プロフィール画像）、Cloudflare KV（WebAuthn チャレンジ・レート制限）
 - 認証: パスキー（WebAuthn）。`@simplewebauthn/server` + `@simplewebauthn/browser`
 - セッション: HttpOnly Cookie + D1 セッションテーブル
 - CSS: Tailwind CSS
-- 型・バリデーション共有: Zod（`src/shared`）
+- 型・バリデーション共有: Zod（`app/lib`）
 - Lint/Format: Biome
 - テスト: Vitest + `@cloudflare/vitest-pool-workers`、E2E は Playwright
 - デプロイ: Wrangler
+
+### データの流れ
+
+- **読み取り**は各ルートの `loader`（Worker 上で実行、Drizzle で D1 を直接引く）。**書き込み**は `action`（`<Form>` / `useFetcher` から）。action 成功後、RR が loader を自動再検証する。
+- 独立した JSON API・SPA・データ取得ライブラリ（TanStack Query 等）は**使わない**。
+- fetch 駆動が必要な口だけ `/api/*` の**リソースルート**にする：WebAuthn セレモニー、句会状態のポーリング、エクスポートのダウンロード、画像配信。
+- サーバ専用コードは `*.server.ts` / `app/server/` に置き、クライアントバンドルから除外する。
 
 ### 採用しないもの
 
@@ -35,8 +43,11 @@
 ```bash
 pnpm install
 
-# ローカル開発（Vite + Workers 統合。D1/R2/KV はローカルエミュレーション）
+# ローカル開発（react-router dev。Workers ランタイム + ローカル D1/R2/KV）
 pnpm dev
+
+# 型の生成（ルート型 + バインディング型）
+pnpm typegen        # react-router typegen && wrangler types
 
 # D1 マイグレーション
 pnpm drizzle-kit generate
@@ -56,25 +67,28 @@ pnpm test
 pnpm test:e2e
 
 # ビルド / デプロイ
-pnpm build
+pnpm build           # react-router build
 pnpm wrangler deploy
 ```
 
 ## プロジェクト構成
 
 ```
-src/
-├─ worker/          Hono バックエンド
-│  ├─ index.ts      エントリ（Hono app、assets フォールバック）
-│  ├─ routes/       機能別ルータ
-│  ├─ middleware/   session / authz / rate-limit / error
-│  ├─ services/     ドメインロジック（権限判定・フェーズ遷移・集計）
-│  ├─ db/           schema.ts（Drizzle）/ client.ts
-│  └─ lib/          webauthn / session / csv / export / id
-├─ client/          React SPA（routes / features / components / api / hooks / styles）
-└─ shared/          Zod スキーマ・型・定数・enum（FE/BE 共有）
+workers/
+└─ app.ts           Worker エントリ（RR ハンドラ + getLoadContext でバインディング注入）
+app/
+├─ root.tsx         ルートレイアウト（認証状態 loader、通知ベル、エラーバウンダリ）
+├─ routes.ts        ルート定義
+├─ routes/          ルートモジュール（loader / action / default コンポーネント、api.* はリソースルート）
+├─ server/          サーバ専用（*.server.ts のみ）
+│  ├─ db/           schema.ts（Drizzle）/ client.server.ts
+│  ├─ auth.server.ts / authz.server.ts / ratelimit.server.ts
+│  └─ services/     ドメインロジック（フェーズ遷移・集計・CSV・エクスポート）
+├─ components/ features/ hooks/
+├─ lib/             Zod スキーマ・型・定数・enum（サーバ / クライアント共有）
+└─ styles/          Tailwind エントリ、縦書きユーティリティ
 migrations/         drizzle-kit 生成の D1 マイグレーション
-test/               worker（Vitest）/ e2e（Playwright）
+test/               server（Vitest）/ e2e（Playwright）
 ```
 
 ## アーキテクチャ指針
@@ -87,7 +101,7 @@ test/               worker（Vitest）/ e2e（Playwright）
 - Submission（投句）: 作者は `authors_revealed_at` 設定まで匿名（サーバ側でマスク）
 - Selection（選句）: 特選・並選・逆選。種別ごとに点数（逆選は負値）
 - Comment: 選句中は自分のみ可視、結果発表後に全員公開
-- GuestParticipant: ゲストコードで単一句会に参加。権限は参加時点のスナップショット
+- GuestParticipant: ゲストコードで句会に参加（コードがあれば複数句会に並行参加可）。1ゲストセッションに句会ごとの行を `session_id` で紐づけ。権限は参加時点のスナップショット
 
 ### 主要な設計判断
 
@@ -96,17 +110,18 @@ test/               worker（Vitest）/ e2e（Playwright）
    - 公開 URL は連番を使わず UUID / 推測困難トークン（`kukai.id`, `organizations.id`, `users.public_id`, `guest_codes.code`）
    - パスキー認証のみ（パスワードなし）
    - セッション Cookie は `__Host-` + `Secure` + `HttpOnly` + `SameSite=Lax`
-   - 状態変更 API は `Origin` / `Sec-Fetch-Site` を検証（CSRF 対策）
+   - 状態変更（action・POST）は `Origin` / `Sec-Fetch-Site` を検証（CSRF 対策）
    - 認証・登録・ゲスト参加はレート制限（KV）
    - ゲストアクセスはコードで発行、有効期限3ヶ月
 3. **フェーズ**: 句会は定義済みフェーズの状態機械。**遷移は主催者の手動操作のみ**（`advance` / `rewind` / `extend`）。`scheduled_*_at` は UI 上の「目安」で、到達しても自動遷移しない。全遷移を `kukai_phase_events` に記録
-4. **画面反映**: 句会画面は `GET /api/kukai/:id/state` を約15秒間隔でポーリングし、`phase` や主要カウンタの変化で関連クエリを invalidate（タブ非アクティブ時は停止）
+4. **画面反映**: 句会画面は `useFetcher` で `GET /api/kukai/:kukaiId/state`（リソースルート）を約15秒間隔で取得し、`phase` や主要カウンタが変化したら `useRevalidator().revalidate()` で loader を再実行（タブ非アクティブ時は停止）
 5. **縦書き表示**: 句カード・選句シート・個人俳句一覧は CSS（`writing-mode: vertical-rl`）で縦書き。管理系 UI は横書き
 6. **エクスポート形式**:
    - 句会: テキスト、CSV（メタデータ付き、UTF-8 + BOM）
    - 個人俳句: テキストのみ（PDF はスコープ外）
-7. **権限判定**: `src/worker/services/authz.ts` に集約し、ルートで宣言的に呼び出す
-8. **匿名性**: `authors_revealed_at` 未設定の間、投句作者はレスポンス整形時に確実に落とす
+7. **権限判定**: `app/server/authz.server.ts` に集約し、loader / action から宣言的に呼び出す
+8. **匿名性**: `authors_revealed_at` 未設定の間、投句作者は loader / リソースルートのレスポンス整形時に確実に落とす
+9. **規模の想定**: 結社 < 100、1 結社あたりメンバー最大 100 人（多くは 20〜30 人）。性能はスタック選定の決め手にせず、D1 単一ライターで詰まらない前提。詳細は SPEC.md「12.2」
 
 ### データベースの考慮点
 
@@ -114,28 +129,31 @@ test/               worker（Vitest）/ e2e（Playwright）
 - データの自動削除は行わない
 - 論理削除を指定箇所で実装
 - UUID 参照、結社/句会クエリ向けのインデックスを用意（SPEC.md「7.3」）
-- 一覧 API はカーソルページング必須
+- 一覧はほぼ一括取得でよい。投句一覧・通知など増え得るものだけカーソルページング
 - バルク処理（CSV インポート、集計）は Workers の CPU / サブリクエスト上限に配慮し分割
 
 ### フロントエンド指針
 
-- サーバ状態は TanStack Query。ミューテーション成功時に関連クエリを invalidate
-- Turbo/Stimulus は使わない（React SPA + JSON API）
+- サーバ状態は RR の loader が担う。データ取得ライブラリ（TanStack Query 等）は入れない。action 成功後は RR が loader を自動再検証
+- グローバルなクライアント状態管理ライブラリは入れない。UI ローカル状態は `useState`、共有したい状態は URL 検索パラメータ
+- Turbo/Stimulus は使わない
 - Tailwind で styling。縦書き用のカスタムユーティリティを持つ
 - モバイルファーストのレスポンシブ設計
-- FE/BE で Zod スキーマ（`src/shared`）を共有
+- loader/action の入力検証とフォームのクライアント検証で `app/lib` の Zod スキーマを共有
 
 ## テスト戦略
 
 - すべての権限境界をテスト（システム管理者・結社管理者・副管理者・メンバー・句会主催者・ゲスト・未認証）
+- loader / action をモックした `Request` + テスト用 D1 で直接呼び、返り値・リダイレクト・ステータスを検証
 - フェーズ遷移（advance / rewind / extend）とフェーズ外操作の拒否、締切時のシャッフル
 - 匿名性（作者情報のレスポンス漏れがないこと）
 - 選句ルール（自句禁止、種別上限、集計スコアの符号）
+- ゲストの複数句会並行参加、`:kukaiId` による権限スコープ、未参加句会への操作拒否
 - エクスポート / インポートの内容と文字コード
 - パスキー認証フロー（登録・ログイン・認証子追加/削除、セッション期限）
 - E2E は Playwright + 仮想認証子（CDP WebAuthn ドメイン）
 
 ## ドキュメント更新ルール
 
-- モデル（`src/worker/db/schema.ts`）を変更したら `SPEC.md`「7. データモデル」を更新する
-- API を追加・変更したら `SPEC.md`「10. API設計」を更新する
+- モデル（`app/server/db/schema.ts`）を変更したら `SPEC.md`「7. データモデル」を更新する
+- ルート（`app/routes.ts`）や loader / action の入出力を変更したら `SPEC.md`「10. ルーティングとデータ規約」を更新する
