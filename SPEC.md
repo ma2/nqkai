@@ -1,6 +1,9 @@
-# 句会Webアプリケーション 仕様書 Ver1.1.0
+# nQkai 仕様書 Ver1.1.0
 
-オンラインで句会（くかい）を開催・管理できるWebアプリケーション。結社（けっしゃ）機能を持ち、パスキー認証によるセキュアなユーザー管理を行う。
+**nQkai**（エヌキューカイ）は、オンラインで句会（くかい）を開催・管理できる Web アプリケーション。結社（けっしゃ）機能を持ち、パスキー認証によるセキュアなユーザー管理を行う。
+
+- 表示名・プロダクト名は **nQkai**。
+- インフラ上の識別子（GitHub リポジトリ、Worker 名、D1 / R2 / KV 名、`wrangler.jsonc` の `name`）は小文字の **`nqkai`**（`workers.dev` サブドメイン等が小文字前提のため）。
 
 本書は要件定義・アーキテクチャ設計・データモデル・API設計・開発ロードマップを1ファイルに集約したものである。旧 `requirements.md` / `roadmap.md` / `er_diagram.puml` の内容は本書に統合されている。
 
@@ -1063,7 +1066,7 @@ jobs:
       "name": "nqkai-dev",
       "vars": {
         "WEBAUTHN_RP_ID": "nqkai-dev.<subdomain>.workers.dev",
-        "WEBAUTHN_RP_NAME": "句会（dev）",
+        "WEBAUTHN_RP_NAME": "nQkai（dev）",
         "WEBAUTHN_ORIGIN": "https://nqkai-dev.<subdomain>.workers.dev"
       },
       "d1_databases": [{ "binding": "DB", "database_name": "nqkai-dev", "database_id": "…", "migrations_dir": "migrations" }],
@@ -1074,7 +1077,7 @@ jobs:
       "name": "nqkai",
       "vars": {
         "WEBAUTHN_RP_ID": "<本番ドメイン>",
-        "WEBAUTHN_RP_NAME": "句会",
+        "WEBAUTHN_RP_NAME": "nQkai",
         "WEBAUTHN_ORIGIN": "https://<本番ドメイン>"
       },
       "d1_databases": [{ "binding": "DB", "database_name": "nqkai-prod", "database_id": "…", "migrations_dir": "migrations" }],
