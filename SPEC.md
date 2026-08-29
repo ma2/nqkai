@@ -120,10 +120,10 @@
 | 環境 | 実行場所 | デプロイのトリガー | D1 / R2 / KV | 用途 |
 |------|----------|--------------------|--------------|------|
 | local | Docker（`docker compose`）上の `react-router dev` | 手動（`docker compose up`） | Miniflare のローカルエミュレーション（状態は名前付きボリュームで永続化） | 開発 |
-| staging | Cloudflare Workers（Worker 名 `staging` → `staging.nqkai.workers.dev`） | **`dev` ブランチへの push** | `nqkai-staging`（D1 / R2 / KV） | 結合確認・動作検証 |
-| production | Cloudflare Workers（Worker 名 `prod` → `prod.nqkai.workers.dev`） | **`main` ブランチへの push**（`dev` からのマージ） | `nqkai-prod`（D1 / R2 / KV） | 本番 |
+| staging | Cloudflare Workers（Worker 名 `nqkai-staging` → `https://nqkai-staging.mckoy.workers.dev`） | **`dev` ブランチへの push** | `nqkai-staging`（D1 / R2 / KV） | 結合確認・動作検証 |
+| production | Cloudflare Workers（Worker 名 `nqkai-prod` → `https://nqkai-prod.mckoy.workers.dev`） | **`main` ブランチへの push**（`dev` からのマージ） | `nqkai-prod`（D1 / R2 / KV） | 本番 |
 
-- Cloudflare 側の環境分離は Wrangler の environments（`wrangler.jsonc` の `env.staging` / `env.production`）で行う。アカウントの workers.dev サブドメインは `nqkai`、Worker 名（`staging` / `prod`）で環境を区別する。ビルド時に `CLOUDFLARE_ENV=staging|production` を与えて `build/server/wrangler.json` に対象 env を焼き込み、`wrangler deploy`（`--env` なし）でデプロイする。ローカルからは `pnpm deploy:staging` / `pnpm deploy:prod`。
+- Cloudflare 側の環境分離は Wrangler の environments（`wrangler.jsonc` の `env.staging` / `env.production`）で行う。アカウントの workers.dev サブドメインは `mckoy`（他アプリと共有・変更しない）、Worker 名（`nqkai-staging` / `nqkai-prod`）で環境を区別する。ビルド時に `CLOUDFLARE_ENV=staging|production` を与えて `build/server/wrangler.json` に対象 env を焼き込み、`wrangler deploy`（`--env` なし）でデプロイする。ローカルからは `pnpm deploy:staging` / `pnpm deploy:prod`。
 - **各環境は独立した D1 データベース・R2 バケット・KV 名前空間・シークレットを持つ。** 環境間でデータは共有しない。名前付き env はバインディングを継承しないため、各 env に明示的に再宣言する。
 - ローカル（Docker）は常に Miniflare のローカルエミュレーションで動かし、`--remote` は使わない。リモートの D1/R2/KV に触れるのは CI からのみ。
 - シークレット（`SESSION_SIGNING_KEY`、WebAuthn RP 設定など）は環境ごとに一度だけ `wrangler secret put --env <env>` で登録する。CI では触らない。ローカルは `.dev.vars`（Git 管理外）。
@@ -132,10 +132,10 @@
 
 ```
  dev ブランチで開発
-   └─ push ──▶ GitHub Actions ──▶ CLOUDFLARE_ENV=staging pnpm build && wrangler deploy   （staging.nqkai.workers.dev へ）
+   └─ push ──▶ GitHub Actions ──▶ CLOUDFLARE_ENV=staging pnpm build && wrangler deploy   （nqkai-staging.mckoy.workers.dev へ）
         │
         └─ PR: dev ─▶ main（レビュー・確認後にマージ）
-              └─ push(main) ──▶ GitHub Actions ──▶ CLOUDFLARE_ENV=production pnpm build && wrangler deploy   （prod.nqkai.workers.dev へ）
+              └─ push(main) ──▶ GitHub Actions ──▶ CLOUDFLARE_ENV=production pnpm build && wrangler deploy   （nqkai-prod.mckoy.workers.dev へ）
 ```
 
 - `main` への直接 push は行わない（ブランチ保護。`dev` からの PR マージのみ）。
@@ -917,8 +917,8 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 - ✅ ユーザーモデル（俳号、プロフィール画像 = R2、`admin:grant` スクリプトでシステム管理者付与）
 - ✅ `root.tsx` レイアウト（認証状態 loader、通知ベル（件数のみ）、エラーバウンダリ）、ログイン / 登録 / 設定 / ダッシュボード、レスポンシブ土台、縦書きユーティリティ
 - ✅ テスト：Vitest（純粋関数）+ Playwright（CDP 仮想認証子でパスキー登録→ログインの E2E）
-- ✅ Cloudflare 実リソース作成（`nqkai-staging` / `nqkai-prod` の D1・R2・KV）、staging へ初回デプロイ
-- ⏳ 残：workers.dev サブドメインを `nqkai` に変更、リモート D1 マイグレーション、GitHub Secrets、ブランチ保護 → 手順は `SETUP.md`
+- ✅ Cloudflare 実リソース作成（`nqkai-staging` / `nqkai-prod` の D1・R2・KV）、staging へ初回デプロイ（https://nqkai-staging.mckoy.workers.dev）
+- ⏳ 残：リモート D1 マイグレーション、production への初回デプロイ、GitHub Secrets、`main` ブランチ保護 → 手順は `SETUP.md`
 
 ### フェーズ2：結社
 
@@ -1075,15 +1075,15 @@ jobs:
   "observability": { "enabled": true },
   "env": {
     "staging": {
-      "name": "staging",                 // → https://staging.nqkai.workers.dev
-      "vars": { "WEBAUTHN_RP_ID": "staging.nqkai.workers.dev", "WEBAUTHN_RP_NAME": "nQkai（staging）", "WEBAUTHN_ORIGIN": "https://staging.nqkai.workers.dev" },
+      "name": "nqkai-staging",           // → https://nqkai-staging.mckoy.workers.dev
+      "vars": { "WEBAUTHN_RP_ID": "nqkai-staging.mckoy.workers.dev", "WEBAUTHN_RP_NAME": "nQkai（staging）", "WEBAUTHN_ORIGIN": "https://nqkai-staging.mckoy.workers.dev" },
       "d1_databases":  [{ "binding": "DB", "database_name": "nqkai-staging", "database_id": "1f1d1edc-…", "migrations_dir": "migrations" }],
       "r2_buckets":    [{ "binding": "BUCKET", "bucket_name": "nqkai-staging" }],
       "kv_namespaces": [{ "binding": "KV", "id": "3a75afdf…" }]
     },
     "production": {
-      "name": "prod",                    // → https://prod.nqkai.workers.dev
-      "vars": { "WEBAUTHN_RP_ID": "prod.nqkai.workers.dev", "WEBAUTHN_RP_NAME": "nQkai", "WEBAUTHN_ORIGIN": "https://prod.nqkai.workers.dev" },
+      "name": "nqkai-prod",              // → https://nqkai-prod.mckoy.workers.dev
+      "vars": { "WEBAUTHN_RP_ID": "nqkai-prod.mckoy.workers.dev", "WEBAUTHN_RP_NAME": "nQkai", "WEBAUTHN_ORIGIN": "https://nqkai-prod.mckoy.workers.dev" },
       "d1_databases":  [{ "binding": "DB", "database_name": "nqkai-prod", "database_id": "6084cfde-…", "migrations_dir": "migrations" }],
       "r2_buckets":    [{ "binding": "BUCKET", "bucket_name": "nqkai-prod" }],
       "kv_namespaces": [{ "binding": "KV", "id": "a9c1955e…" }]
@@ -1098,7 +1098,7 @@ jobs:
 | `BUCKET` | R2 | プロフィール画像 |
 | `KV` | KV | WebAuthn チャレンジ、レート制限 |
 
-- アカウントの workers.dev サブドメインは 1 つ（`nqkai`）。環境は Worker 名（`staging` / `prod`）で分ける。
+- アカウントの workers.dev サブドメインは 1 つ（`mckoy`、他アプリと共有）。環境は Worker 名（`nqkai-staging` / `nqkai-prod`）で分ける。
 - 名前付き env はトップレベルのバインディングを継承しないため、`staging` / `production` の両方に同じ 3 バインディングを再宣言する。
 - 静的アセットは React Router の Cloudflare プリセットが `assets`（`build/client`）として配信するため、参照用の名前付きバインディングは不要。
 - 環境ごとのシークレット登録（初回のみ）：`wrangler secret put <NAME> --env staging` / `--env production`。

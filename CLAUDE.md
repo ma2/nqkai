@@ -10,7 +10,7 @@
 
 ## 技術スタック
 
-- 実行環境: Cloudflare Workers（単一 Worker）。staging / production の 2 環境（Wrangler environments、workers.dev サブドメイン `nqkai` + Worker 名 `staging` / `prod`）
+- 実行環境: Cloudflare Workers（単一 Worker）。staging / production の 2 環境（Wrangler environments、workers.dev サブドメイン `mckoy`（アカウント共有）+ Worker 名 `nqkai-staging` / `nqkai-prod`）
 - ローカル: Docker（`docker compose` 上の `react-router dev` + Miniflare ローカルエミュレーション）。ホスト直実行は Node 22.22+ と新しめ glibc が必要
 - 言語: TypeScript
 - アプリフレームワーク: React Router v8（framework mode）。SSR + ネストルーティング + loader / action。context は `RouterContextProvider`（`workers/app.ts` で `env`/`ctx` を注入、`app/server/context.server.ts` の `getServerContext()` で取り出す）
