@@ -10,9 +10,8 @@
   "observability": {
     "enabled": true
   },
-  // 名前付き env はバインディング（vars / d1 / r2 / kv）を継承しないため、
-  // 各 env に明示的に再宣言する。database_id / KV id はプレースホルダ。
-  // 実リソース作成後（`wrangler d1 create` 等）に置き換える。詳細は SETUP.md。
+  // 名前付き env はバインディング（vars / d1 / r2 / kv）を継承しないため、各 env に明示的に再宣言する。
+  // WEBAUTHN_* は初回デプロイで判明する *.workers.dev のホスト名（またはカスタムドメイン）に合わせて更新する。
   "env": {
     "dev": {
       "name": "nqkai-dev",
@@ -25,7 +24,7 @@
         {
           "binding": "DB",
           "database_name": "nqkai-dev",
-          "database_id": "00000000-0000-0000-0000-000000000000",
+          "database_id": "2a9d30cb-5ffc-4621-81d7-dbd8f42cdca7",
           "migrations_dir": "migrations"
         }
       ],
@@ -38,22 +37,22 @@
       "kv_namespaces": [
         {
           "binding": "KV",
-          "id": "00000000000000000000000000000000"
+          "id": "ba845020976d4aefb7bd2ee18ce29b14"
         }
       ]
     },
     "production": {
       "name": "nqkai",
       "vars": {
-        "WEBAUTHN_RP_ID": "example.com",
+        "WEBAUTHN_RP_ID": "nqkai.workers.dev",
         "WEBAUTHN_RP_NAME": "nQkai",
-        "WEBAUTHN_ORIGIN": "https://example.com"
+        "WEBAUTHN_ORIGIN": "https://nqkai.workers.dev"
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "nqkai-prod",
-          "database_id": "00000000-0000-0000-0000-000000000000",
+          "database_id": "6084cfde-648d-45d6-be8c-26b83bd4b95c",
           "migrations_dir": "migrations"
         }
       ],
@@ -66,7 +65,7 @@
       "kv_namespaces": [
         {
           "binding": "KV",
-          "id": "00000000000000000000000000000000"
+          "id": "a9c1955eb227473a8faa0695301d2a0d"
         }
       ]
     }
