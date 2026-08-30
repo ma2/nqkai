@@ -4,7 +4,15 @@ export default [
   index("routes/_index.tsx"),
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
+  route("recover", "routes/recover.tsx"),
   route("settings", "routes/settings.tsx"),
+  route("notifications", "routes/notifications.tsx"),
+
+  // 結社
+  route("orgs", "routes/orgs._index.tsx"),
+  route("orgs/new", "routes/orgs.new.tsx"),
+  route("orgs/:orgId", "routes/orgs.$orgId.tsx"),
+  route("orgs/:orgId/admin", "routes/orgs.$orgId.admin.tsx"),
 
   // リソースルート（コンポーネントを持たず Response を返す）
   ...prefix("api", [
@@ -15,6 +23,8 @@ export default [
       route("login/verify", "routes/api.auth.login.verify.ts"),
       route("credentials/options", "routes/api.auth.credentials.options.ts"),
       route("credentials/verify", "routes/api.auth.credentials.verify.ts"),
+      route("recovery/redeem/options", "routes/api.auth.recovery.redeem.options.ts"),
+      route("recovery/redeem/verify", "routes/api.auth.recovery.redeem.verify.ts"),
     ]),
     route("avatars/:userId", "routes/api.avatars.$userId.ts"),
   ]),

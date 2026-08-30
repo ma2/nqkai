@@ -92,6 +92,12 @@ export default function Login() {
           新規登録
         </Link>
       </p>
+      <p className="text-sm text-stone-500">
+        パスキーを使えない場合は{" "}
+        <Link to="/recover" className="underline">
+          パスキーの復旧
+        </Link>
+      </p>
       <noscript>
         <p className="text-sm text-red-600">パスキー認証には JavaScript が必要です。</p>
       </noscript>

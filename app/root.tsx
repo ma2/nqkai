@@ -1,4 +1,3 @@
-import { and, count, eq, isNull } from "drizzle-orm";
 import type { ReactNode } from "react";
 import {
   Form,
@@ -14,7 +13,7 @@ import type { Route } from "./+types/root";
 import stylesheet from "./app.css?url";
 import { getAuth } from "./server/auth.server";
 import { getServerContext } from "./server/context.server";
-import { notifications } from "./server/db/schema";
+import { countUnread } from "./server/notifications.server";
 
 export const links: Route.LinksFunction = () => [{ rel: "stylesheet", href: stylesheet }];
 
@@ -28,19 +27,13 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const auth = await getAuth(db, request);
   if (!auth) return { user: null, unreadCount: 0 };
 
-  const unread = await db
-    .select({ n: count() })
-    .from(notifications)
-    .where(and(eq(notifications.userId, auth.user.id), isNull(notifications.readAt)))
-    .get();
-
   return {
     user: {
       id: auth.user.id,
       haigo: auth.user.haigo,
       isSystemAdmin: auth.user.isSystemAdmin,
     },
-    unreadCount: unread?.n ?? 0,
+    unreadCount: await countUnread(db, auth.user.id),
   };
 }
 
@@ -78,9 +71,17 @@ function Header({
         <nav className="flex items-center gap-4 text-sm">
           {user ? (
             <>
-              <span className="hidden text-stone-500 sm:inline">
-                通知 <span className="font-medium text-stone-900">{unreadCount}</span>
-              </span>
+              <Link to="/orgs" className="hidden text-stone-700 hover:text-stone-950 sm:inline">
+                結社
+              </Link>
+              <Link to="/notifications" className="text-stone-700 hover:text-stone-950">
+                通知
+                {unreadCount > 0 ? (
+                  <span className="ml-1 rounded-full bg-stone-900 px-1.5 py-0.5 text-xs text-white">
+                    {unreadCount}
+                  </span>
+                ) : null}
+              </Link>
               <Link to="/settings" className="text-stone-700 hover:text-stone-950">
                 {user.haigo}
               </Link>

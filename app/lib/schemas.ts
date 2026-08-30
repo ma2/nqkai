@@ -37,3 +37,47 @@ export const credentialStartSchema = z.object({
 export const profileUpdateSchema = z.object({
   haigo: haigoSchema,
 });
+
+// ---- フェーズ2：結社 --------------------------------------------------
+
+export const orgNameSchema = z
+  .string()
+  .trim()
+  .min(1, "結社名を入力してください")
+  .max(60, "結社名は60文字以内で入力してください");
+
+export const orgDescriptionSchema = z
+  .string()
+  .trim()
+  .max(2000, "説明は2000文字以内で入力してください");
+
+export const orgCreateSchema = z.object({
+  name: orgNameSchema,
+  description: orgDescriptionSchema.optional().default(""),
+});
+
+export const orgUpdateSchema = orgCreateSchema;
+
+export const joinRequestSchema = z.object({
+  message: z.string().trim().max(500, "メッセージは500文字以内で入力してください").optional(),
+});
+
+// ---- フェーズ2：アカウント復旧（案D） --------------------------------
+
+/** 復旧依頼（未認証） */
+export const recoveryRequestSchema = z.object({
+  email: emailSchema,
+  note: z.string().trim().max(500).optional(),
+});
+
+/** 復旧コードでの再登録開始（未認証） */
+export const recoveryRedeemStartSchema = z.object({
+  email: emailSchema,
+  code: z
+    .string()
+    .trim()
+    .min(1, "コードを入力してください")
+    .max(40, "コードが長すぎます")
+    // 表示は ABCD-EFGH-JKMN 形式。ハイフン・空白・大文字小文字を吸収
+    .transform((v) => v.replace(/[\s-]/g, "").toUpperCase()),
+});

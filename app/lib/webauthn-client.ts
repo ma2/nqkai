@@ -42,3 +42,13 @@ export async function addPasskey(input: { deviceName?: string }): Promise<void> 
   const response = await startRegistration({ optionsJSON: options });
   await postJson("/api/auth/credentials/verify", { tempId, response });
 }
+
+/** 復旧コードでパスキーを再登録（案D / SPEC「5.5」） */
+export async function redeemRecovery(input: { email: string; code: string }): Promise<void> {
+  const { tempId, options } = await postJson<RegOptions>(
+    "/api/auth/recovery/redeem/options",
+    input,
+  );
+  const response = await startRegistration({ optionsJSON: options });
+  await postJson("/api/auth/recovery/redeem/verify", { tempId, response });
+}
