@@ -1,4 +1,4 @@
-# nQkai 仕様書 Ver1.1.0
+# nQkai 仕様書 Ver1.2.0
 
 **nQkai**（エヌキューカイ）は、オンラインで句会（くかい）を開催・管理できる Web アプリケーション。結社（けっしゃ）機能を持ち、パスキー認証によるセキュアなユーザー管理を行う。
 
@@ -232,6 +232,12 @@ WebAuthn セレモニーは `@simplewebauthn/browser` から fetch で叩くた�
 - ログイン済みユーザーが端末ごとにパスキーを追加できる。`POST /api/auth/credentials/options` → `POST /api/auth/credentials/verify`。
 - 1ユーザーが複数の認証子を持てる。認証子には任意の表示名（例：「iPhone」）を付けられる。最後の1つは削除不可。
 
+#### 複数パスキーの推奨（端末紛失対策の第一線）
+
+- 登録完了直後と、認証子が 1 個しかない状態でログインした際に、**2 個目のパスキー登録を促すバナー**を出す（「別の端末（PC・タブレット）にも登録しておくと、機種変や紛失のときに安心です」）。
+- 設定画面の「パスキー」セクションで、認証子が 1 個のときは注意表示を出す。
+- 端末を失っても他のパスキーでログインできれば復旧は不要。それでも全て失った場合の最終手段が「5.5 アカウント復旧」。
+
 #### ログインフロー
 
 1. `POST /api/auth/login/options` … メールアドレス（任意。省略時は discoverable credential を許可）を受け取り `generateAuthenticationOptions()`。チャレンジを KV に保存。
@@ -257,7 +263,54 @@ WebAuthn セレモニーは `@simplewebauthn/browser` から fetch で叩くた�
 
 ### 5.4 システム管理者
 
-- `users.is_system_admin = true` のユーザー。付与は seed もしくは管理コンソール（`rails console` 相当のスクリプト）で行う。UI 上の昇格導線は持たない。
+- `users.is_system_admin = true` のユーザー。付与は `pnpm admin:grant <email> [--env …]` スクリプト（`wrangler d1 execute` で該当行を更新）で行う。UI 上の昇格導線は持たない。
+- **運用要件**：システム管理者は常に 2 名以上とし、各自が 2 個以上のパスキーを登録する（相互に「5.5」で復旧できるようにするため）。
+
+### 5.5 アカウント復旧（管理者仲介 / 案D）
+
+全パスキーを失ってログインできなくなった会員を、**その会員が所属する結社の管理者、またはシステム管理者が発行する一回限りの「再登録コード」で復旧**する。俳句人口は年配層が多く、機種変や端末紛失で締め出される事故が起きやすいため、パスキーのみ運用にこの回復導線を必須で組み込む。メール送信基盤は使わない（結社という「互いを知る」組織構造に本人確認を委ねる）。
+
+#### 5.5.1 データ
+
+`account_recovery_codes`（「7.2」に定義）を追加する。生コードは保存せず SHA-256 ハッシュのみ保持。1 ユーザーにつき有効な（未使用・未失効）コードは 1 件のみ（再発行で前のものを失効）。
+
+#### 5.5.2 フロー
+
+1. **復旧依頼（未認証）**：ログイン画面の「パスキーを使えない場合」→ メールアドレスを入力。
+   - そのメールのユーザーが実在し、かつ `status = 'open'` の結社に 1 つ以上所属していれば、`recovery_requests`（「7.2」）を作成し、当該結社の管理者・副管理者へアプリ内通知。
+   - メールの実在有無は返答で明かさない（常に「依頼を受け付けました。管理者の対応をお待ちください」）。KV でレート制限（IP + メール）。
+   - 所属結社が無い会員は依頼できない → 画面にシステム管理者への連絡導線（問い合わせ先）を表示する（**運用でカバーする既知の制約**）。
+
+2. **発行（結社管理画面）**：「パスキー復旧依頼」一覧、または任意メンバーの行から「復旧コードを発行」。
+   - 管理者は対象の**俳号と登録メールアドレスを画面で確認**し、電話・LINE・対面など**アプリ外で本人であることを確かめる**（社会的な本人確認）。
+   - 発行すると、人が読める形式のコード（例：`ABCD-EFGH-JKMN`、8〜12 文字の base32、紛らわしい文字を除外）を**その場で一度だけ管理者に表示**。管理者がアプリ外で会員へ渡す。サーバはハッシュのみ保存。
+   - `issued_by` / `organization_id` / `issued_via`（`organization_admin` / `system_admin`）/ `expires_at`（発行から 24 時間）を記録。
+   - **同じ結社の他の管理者・副管理者にアプリ内通知**（サイレントな操作にしない）。システム管理者は全発行イベントを閲覧可能。
+
+3. **再登録（未認証）**：ログイン画面の「復旧コードでパスキーを再登録」→ メールアドレス + コードを入力。
+   - サーバが `code_hash` 一致・未失効・未使用・ユーザー一致を検証。失敗は一律「コードが無効です」。試行はレート制限。
+   - 成功したら **WebAuthn 登録セレモニー**（`credentials/*` と同じ）を実行し、新しい `webauthn_credentials` を当該ユーザーに追加。`used_at` を記録し、**当該ユーザーの既存セッションを全て失効**。新規セッションを発行。
+   - 既存の（紛失したはずの）パスキーは自動削除しない（端末が戻る可能性）。再登録後の画面で「古いパスキーの整理」と「2 個目の登録」を促す。
+   - 発行元の結社管理者・副管理者、およびシステム管理者へ「復旧コードが使用されました」のアプリ内通知（乱用の検知可能性を担保）。
+
+#### 5.5.3 権限
+
+| 発行できる人 | 対象 |
+|--------------|------|
+| システム管理者 | 全ユーザー |
+| 結社管理者・副管理者（`status = 'open'` の結社のみ） | その結社の現メンバー |
+
+- 閉鎖結社（`status = 'closed'`）の管理者は発行不可（「閉鎖された結社の句会は閲覧不可」と整合）。対象会員はシステム管理者にフォールバック。
+- 対象ユーザーが `suspended` の場合は発行不可。
+
+#### 5.5.4 セキュリティ上の注意
+
+- **悪意ある管理者**が自分でコードを発行・使用して会員のアカウントを乗っ取るリスクが残る。緩和策：
+  - 全発行・使用イベントを監査ログに残す（`issued_by`、`used_at`、使用時の IP / UA）。
+  - 発行・使用時に他の管理者へ通知（サイレント化させない）。
+  - 復旧コードでできるのは「パスキーの追加」のみ。メール変更・退会・権限操作はできない。コードは 1 ユーザーに束縛、24 時間・単回使用。
+  - 最終的には「管理者は結社内で信頼されている」前提と、監査による事後追跡で受容する残存リスクとする。
+- システム管理者が全員締め出された場合の最終手段（break-glass）：`wrangler d1 execute` で直接 `webauthn_credentials` を投入するか `account_recovery_codes` を発行する運用スクリプト。だからこそ「5.4」の運用要件（2 名以上・各 2 パスキー）を守る。
 
 ---
 
@@ -295,6 +348,7 @@ WebAuthn セレモニーは `@simplewebauthn/browser` から fetch で叩くた�
 | 句の非表示設定 | ✓ | — | — | — | ✓ | — |
 | 句会の論理削除・復活 | ✓ | ✓ | ✓ | — | ✓（自句会） | — |
 | ゲストコードの発行・失効 | ✓ | — | — | — | ✓ | — |
+| パスキー復旧コードの発行（「5.5」） | ✓（全員） | ✓（現メンバー） | ✓（現メンバー） | — | — | — |
 | 投句 | — | 参加者として | 参加者として | 参加者として | 参加者として | 許可時のみ |
 | 選句 | — | 参加者として | 参加者として | 参加者として | 参加者として | 許可時のみ |
 | コメント | — | 参加者として | 参加者として | 参加者として | 参加者として | 許可時のみ |
@@ -314,6 +368,9 @@ User ||--o{ Session
 User ||--o{ OrganizationMembership
 User ||--o{ OrganizationJoinRequest
 User ||--o{ Notification
+User ||--o{ RecoveryRequest : "パスキー復旧依頼"
+User ||--o{ AccountRecoveryCode : "再登録コード（対象）"
+User ||--o{ AccountRecoveryCode : "issued_by（発行者）"
 User ||--o{ Kukai : "organizes"
 User ||--o{ Submission : "authors (member)"
 User ||--o{ Selection : "selects (member)"
@@ -321,6 +378,7 @@ User ||--o{ Comment  : "writes (member)"
 
 Organization ||--o{ OrganizationMembership
 Organization ||--o{ OrganizationJoinRequest
+Organization ||--o{ RecoveryRequest : "依頼の回送先"
 Organization ||--o{ Kukai : "hosts"
 
 Kukai ||--o{ Submission
@@ -537,10 +595,44 @@ Submission ||--o{ Comment
 |--------|----|----|
 | id | TEXT PK | |
 | user_id | TEXT FK → users | 宛先 |
-| type | TEXT | `join_request_received` / `join_approved` / `join_rejected` / `phase_changed` / `kukai_deleted` など |
+| type | TEXT | `join_request_received` / `join_approved` / `join_rejected` / `phase_changed` / `kukai_deleted` / `recovery_requested` / `recovery_code_issued` / `recovery_code_used` など |
 | payload | TEXT | JSON（結社 ID、句会 ID、フェーズ名など） |
 | read_at | INTEGER NULL | |
 | created_at | INTEGER | |
+
+#### recovery_requests（パスキー復旧依頼 / 「5.5」）
+
+| カラム | 型 | 説明 |
+|--------|----|----|
+| id | TEXT PK | |
+| user_id | TEXT FK → users | 復旧対象（未認証で作成されるが、既存メールに一致した場合のみ行を作る） |
+| organization_id | TEXT FK → organizations | 依頼が回送される結社（対象が複数結社に所属なら各結社に 1 行） |
+| status | TEXT | `pending` / `handled` / `expired` |
+| note | TEXT NULL | 依頼者メッセージ（任意） |
+| created_at | INTEGER | |
+| handled_by | TEXT NULL FK → users | 対応した管理者 |
+| handled_at | INTEGER NULL | |
+
+制約：`UNIQUE(user_id, organization_id)` where `status = 'pending'`。作成時のレート制限は KV。
+
+#### account_recovery_codes（パスキー再登録コード / 「5.5」）
+
+| カラム | 型 | 説明 |
+|--------|----|----|
+| id | TEXT PK | |
+| user_id | TEXT FK → users | 復旧対象 |
+| code_hash | TEXT | コードの SHA-256（hex）。生コードは保存しない |
+| issued_by | TEXT FK → users | 発行した管理者 |
+| issued_via | TEXT | `organization_admin` / `system_admin` |
+| organization_id | TEXT NULL FK → organizations | 結社管理者による発行時の結社（監査・権限文脈） |
+| issuer_ip | TEXT NULL | 発行時 IP |
+| used_at | INTEGER NULL | 使用時刻（NULL＝未使用） |
+| used_ip | TEXT NULL | 使用時 IP |
+| used_user_agent | TEXT NULL | 使用時 UA |
+| expires_at | INTEGER | 発行から 24 時間 |
+| created_at | INTEGER | |
+
+制約：1 ユーザーにつき「未使用かつ未失効」の行は最大 1 件（部分ユニーク相当。再発行時にアプリ層で前行を失効させる）。索引 `account_recovery_codes(user_id)`。
 
 #### csv_imports（CSV 一括登録の履歴）
 
@@ -557,7 +649,7 @@ Submission ||--o{ Comment
 ### 7.3 インデックス方針
 
 - 公開 URL 参照：`organizations.id`, `kukai.id`, `users.public_id`, `guest_codes.code` はいずれも PK / UNIQUE で高速参照。
-- 一覧系：`kukai(organization_id, phase, deleted_at)`, `submissions(kukai_id)`, `selections(kukai_id)`, `comments(kukai_id, submission_id)`, `organization_memberships(user_id)`, `organization_memberships(organization_id, role)`, `notifications(user_id, read_at)`, `organization_join_requests(organization_id, status)`。
+- 一覧系：`kukai(organization_id, phase, deleted_at)`, `submissions(kukai_id)`, `selections(kukai_id)`, `comments(kukai_id, submission_id)`, `organization_memberships(user_id)`, `organization_memberships(organization_id, role)`, `notifications(user_id, read_at)`, `organization_join_requests(organization_id, status)`, `recovery_requests(organization_id, status)`, `account_recovery_codes(user_id)`。
 - セッション：`sessions(expires_at)`（期限切れ掃除用）、`sessions(user_id)`。
 
 ### 7.4 データ保持
@@ -700,16 +792,22 @@ Submission ||--o{ Comment
 
 ### 9.10 アプリ内通知
 
-- 対象イベント：結社参加申請の受信、参加承認 / 却下、句会のフェーズ変更、句会の論理削除、（システム管理者による）コンテンツ削除・アカウント停止。
+- 対象イベント：結社参加申請の受信、参加承認 / 却下、句会のフェーズ変更、句会の論理削除、（システム管理者による）コンテンツ削除・アカウント停止、パスキー復旧依頼の受信 / 復旧コードの発行・使用（「5.5」）。
 - `GET /api/notifications`（ページング）、`POST /api/notifications/:id/read`、`POST /api/notifications/read-all`。
 - ヘッダの通知ベルに未読数。ポーリングまたは画面遷移時に取得。
 - **メール送信は行わない。**
 
-### 9.11 システム管理
+### 9.11 アカウント復旧（案D）
+
+- フロー・権限・監査は「5.5」。会員向け（`/recover`）と結社管理画面（依頼一覧・コード発行）に分かれる。
+- 発行・使用のたびに、その結社の他の管理者・副管理者へアプリ内通知（サイレント化させない）。
+
+### 9.12 システム管理
 
 - 全結社・全句会の閲覧・管理（論理削除・復活、閉鎖の強制解除など）。
 - 不適切コンテンツ（投句・コメント）の削除。
 - ユーザーアカウントの停止（`status = 'suspended'`）・削除。
+- 全ユーザーのパスキー復旧コード発行、および全 `account_recovery_codes` イベントの閲覧（乱用検知）。
 - 監査のため主要操作は `kukai_phase_events` 等のログに `actor_id` を残す。管理操作専用ログは将来検討。
 
 ---
@@ -733,10 +831,11 @@ Submission ||--o{ Comment
 |--------|-------------------|--------------------|------|
 | `_index`（`/`） | 所属結社、進行中の句会、未読通知数 | 通知の既読化 | 会員 |
 | `login` / `register` | — | （WebAuthn はリソースルート） | 未認証 |
+| `recover`（`/recover`） | 説明文（依頼フォーム／コード入力フォームの2モード） | 復旧依頼の作成（`recovery_requests`） | 未認証。WebAuthn 再登録はリソースルート |
 | `settings` | プロフィール、登録済み認証子一覧 | 俳号更新 / 画像更新・削除 / 認証子削除 / 退会 / 全端末ログアウト | 本人 |
 | `orgs`（`/orgs`） | 結社一覧 | 結社作成 | 一覧:公開 / 作成:会員 |
 | `orgs.$orgId` | 結社詳細、メンバー数、開催中の句会、自分の申請状態 | 参加申請 / 申請取り下げ / 自主退会 | 詳細:公開 |
-| `orgs.$orgId.admin` | 参加申請一覧、メンバー一覧、句会一覧、インポート履歴 | 結社情報編集 / 申請の承認・却下 / 強制退会 / 副管理者の任免 / 閉鎖・再開 / CSV インポート | 管理者・副管理者（閉鎖は管理者） |
+| `orgs.$orgId.admin` | 参加申請一覧、メンバー一覧、句会一覧、インポート履歴、パスキー復旧依頼一覧 | 結社情報編集 / 申請の承認・却下 / 強制退会 / 副管理者の任免 / 閉鎖・再開 / CSV インポート / **パスキー復旧コード発行** | 管理者・副管理者（閉鎖は管理者） |
 | `orgs.$orgId.kukai.new` | 作成フォームの初期値 | 句会作成 | メンバー |
 | `kukai.$kukaiId` | 句会情報、現在フェーズ、参加状態、自分の投句、（フェーズに応じ）結果 | フェーズ遷移（advance / rewind / extend）/ 作者公開 / 論理削除・復活 / 設定変更 / 句の非表示切替 / ゲストコード発行・失効 | 閲覧:閲覧可能者 / 変更:主催者 |
 | `kukai.$kukaiId.submit` | 自分の投句、投句上限、締切 | 投句の追加・修正・削除（`submission` フェーズ、上限、自句のみ） | 参加者 |
@@ -753,6 +852,7 @@ Submission ||--o{ Comment
 | `POST /api/auth/register/options` `.../verify` | パスキー登録セレモニー | 未認証 |
 | `POST /api/auth/login/options` `.../verify` | パスキーログインセレモニー | 未認証 |
 | `POST /api/auth/credentials/options` `.../verify` | 認証子の追加セレモニー | 本人 |
+| `POST /api/auth/recovery/redeem/options` `.../verify` | 復旧コードの検証 + パスキー再登録セレモニー（「5.5」） | 未認証（メール + コード必須） |
 | `GET  /api/kukai/:kukaiId/state` | 軽量ポーリング用の状態（`phase` / `authors_revealed_at` / 各種カウンタ / `server_time`） | 閲覧可能者 |
 | `GET  /api/avatars/:userId` | R2 からプロフィール画像を stream（`Cache-Control` 付与） | 公開 |
 | `GET  /api/kukai/:kukaiId/export?format=text\|csv` | 句会エクスポートのダウンロード | 主催者・結社管理者・副管理者 |
@@ -778,9 +878,10 @@ Submission ||--o{ Comment
 |-----|------------------|------|------|
 | `/` | `routes/_index.tsx` | ダッシュボード（所属結社、進行中の句会、通知） | 要 |
 | `/login` `/register` | `routes/login.tsx` `routes/register.tsx` | パスキー認証 | 不要 |
+| `/recover` | `routes/recover.tsx` | パスキー復旧（依頼 / コード入力）「5.5」 | 不要 |
 | `/settings` | `routes/settings.tsx` | プロフィール・パスキー管理 | 要 |
 | `/orgs` `/orgs/new` `/orgs/:orgId` | `routes/orgs._index.tsx` ほか | 結社一覧・作成・詳細 | 詳細は一部公開 |
-| `/orgs/:orgId/admin` | `routes/orgs.$orgId.admin.tsx` | 結社管理（申請・メンバー・句会・インポート） | 管理者・副管理者 |
+| `/orgs/:orgId/admin` | `routes/orgs.$orgId.admin.tsx` | 結社管理（申請・メンバー・句会・インポート・**パスキー復旧**） | 管理者・副管理者 |
 | `/orgs/:orgId/kukai/new` | `routes/orgs.$orgId.kukai.new.tsx` | 句会作成 | メンバー |
 | `/kukai/:kukaiId` | `routes/kukai.$kukaiId.tsx` | 句会トップ（フェーズ別 UI、主催者は管理パネルも同画面） | 閲覧可能者 |
 | `/kukai/:kukaiId/submit` | `routes/kukai.$kukaiId.submit.tsx` | 投句 | 参加者 |
@@ -840,11 +941,12 @@ Submission ||--o{ Comment
 
 ### 12.3 セキュリティ
 
-- 認証はパスキーのみ。パスワードは持たない。
+- 認証はパスキーのみ。パスワードは持たない。復旧は「5.5」の管理者仲介（案D）。
 - 公開 URL は連番を使わず UUID / 推測困難トークン（`kukai.id`, `organizations.id`, `users.public_id`, `guest_codes.code`）。
 - セッション Cookie は `__Host-` プレフィックス + `Secure` + `HttpOnly` + `SameSite=Lax`。
 - 状態変更 API は `Origin` / `Sec-Fetch-Site` 検証で CSRF 対策。
-- 認証・ゲスト参加・登録オプション取得はレート制限（KV カウンタ、IP + 対象キー単位）。
+- 認証・ゲスト参加・登録オプション取得・復旧依頼・復旧コード検証はレート制限（KV カウンタ、IP + 対象キー単位）。
+- パスキー復旧（「5.5」）：生コードは保存せずハッシュのみ。24 時間・単回・1 ユーザー束縛。できるのはパスキー追加のみ。発行・使用イベントは `issued_by` / `used_ip` / `used_user_agent` を記録し、同結社の他管理者へ通知（サイレント化させない）。「メール実在の有無」は依頼レスポンスで漏らさない。
 - 匿名性：`authors_revealed_at` 未設定の間、投句作者はサーバ側で確実にマスク（レスポンス整形時に落とす）。
 - 権限判定は `authz` サービスに集約し、ルートごとに明示。
 - R2 アップロードは MIME・拡張子・サイズ・（可能なら）マジックバイト検証。
@@ -868,6 +970,7 @@ Submission ||--o{ Comment
 | DB | SQLite（自前） | Cloudflare D1 |
 | ORM | Active Record | Drizzle ORM |
 | 認証実装 | Rails + パスキー gem | `@simplewebauthn/*` + D1 セッション |
+| アカウント復旧 | （パスワード再設定を想定） | パスキーのみ。復旧は**結社管理者 / システム管理者が一回限りの再登録コードを発行**（案D、「5.5」）。メール不使用 |
 | 画像保存 | Active Storage 等 | Cloudflare R2 |
 | メール通知 | ActionMailer | **廃止**（Web 申請 → オーナー承認、アプリ内通知のみ） |
 | フェーズ自動遷移 | ジョブ / cron 想定 | **廃止**（主催者の手動操作のみ、時刻は目安表示） |
@@ -917,8 +1020,9 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 - ✅ ユーザーモデル（俳号、プロフィール画像 = R2、`admin:grant` スクリプトでシステム管理者付与）
 - ✅ `root.tsx` レイアウト（認証状態 loader、通知ベル（件数のみ）、エラーバウンダリ）、ログイン / 登録 / 設定 / ダッシュボード、レスポンシブ土台、縦書きユーティリティ
 - ✅ テスト：Vitest（純粋関数）+ Playwright（CDP 仮想認証子でパスキー登録→ログインの E2E）
-- ✅ Cloudflare 実リソース作成（`nqkai-staging` / `nqkai-prod` の D1・R2・KV）、staging へ初回デプロイ（https://nqkai-staging.mckoy.workers.dev）
-- ⏳ 残：リモート D1 マイグレーション、production への初回デプロイ、GitHub Secrets、`main` ブランチ保護 → 手順は `SETUP.md`
+- ✅ Cloudflare 実リソース（`nqkai-staging` / `nqkai-prod` の D1・R2・KV）、両環境デプロイ・リモート D1 マイグレーション・GitHub Secrets 済み。CI/CD で `dev`→staging / `main`→production を実地確認
+- ⏳ `main` ブランチ保護ルールセットを `Active` にする（構成済み・enforcement disabled）
+- ⏳ フォローアップ：複数パスキー登録の推奨バナー（案E、「5.1」）
 
 ### フェーズ2：結社
 
@@ -926,6 +1030,7 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 - 参加申請 → 承認 / 却下（アプリ内通知）
 - メンバー一覧、自主退会・強制退会
 - 管理者・副管理者の権限、結社の閉鎖・再開
+- **アカウント復旧（案D、「5.5」）**：`recovery_requests` / `account_recovery_codes` テーブル、`/recover` 画面、結社管理画面の依頼一覧・コード発行、`/api/auth/recovery/redeem/*` リソースルート、発行・使用の監査と通知
 
 ### フェーズ3：句会の基本サイクル（MVP）
 
