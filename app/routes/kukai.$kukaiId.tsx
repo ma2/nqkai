@@ -1,6 +1,6 @@
 import { data, Form, Link } from "react-router";
 import { useKukaiStatePolling } from "~/hooks/useKukaiStatePolling";
-import { isAtOrAfter, KUKAI_PHASE_LABEL, phaseIndex } from "~/lib/constants";
+import { isAtOrAfter, KUKAI_PHASE_LABEL, KUKAI_PHASES, phaseIndex } from "~/lib/constants";
 import { getAuth, requireAuth } from "~/server/auth.server";
 import { getServerContext } from "~/server/context.server";
 import { assertTrustedRequest } from "~/server/http.server";
@@ -124,6 +124,8 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
   useKukaiStatePolling(k.id);
 
   const pi = phaseIndex(k.phase);
+  const prevPhase = pi > 0 ? KUKAI_PHASES[pi - 1] : null;
+  const nextPhase = pi < KUKAI_PHASES.length - 1 ? KUKAI_PHASES[pi + 1] : null;
   const canSubmit = canParticipate && k.phase === "submission";
   const canSelect = canParticipate && k.phase === "selection";
   const showResults = isAtOrAfter(k.phase, "result");
@@ -198,10 +200,10 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
               <input type="hidden" name="intent" value="rewind" />
               <button
                 type="submit"
-                disabled={pi <= 0}
+                disabled={!prevPhase}
                 className="rounded border border-stone-300 px-3 py-1.5 text-sm hover:bg-stone-100 disabled:opacity-40"
               >
-                ← 前のフェーズ
+                {prevPhase ? `← ${KUKAI_PHASE_LABEL[prevPhase]} に戻す` : "← 前のフェーズ"}
               </button>
             </Form>
             <span className="text-sm text-stone-600">
@@ -211,9 +213,10 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
               <input type="hidden" name="intent" value="advance" />
               <button
                 type="submit"
-                className="rounded bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700"
+                disabled={!nextPhase}
+                className="rounded bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700 disabled:opacity-40"
               >
-                次のフェーズ →
+                {nextPhase ? `${KUKAI_PHASE_LABEL[nextPhase]} に進める →` : "次のフェーズ →"}
               </button>
             </Form>
           </div>
@@ -230,13 +233,13 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
             </Form>
           ) : null}
 
-          {/* 投句の管理 */}
+          {/* 投句の管理（既定は折りたたみ） */}
           {organizerSubmissions.length > 0 ? (
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-stone-600">
-                投句（{organizerSubmissions.length}）
-              </h3>
-              <ul className="divide-y divide-stone-200 rounded border border-stone-200">
+            <details className="space-y-2">
+              <summary className="cursor-pointer text-sm font-medium text-stone-600">
+                投句を確認・管理（{organizerSubmissions.length}）
+              </summary>
+              <ul className="mt-2 divide-y divide-stone-200 rounded border border-stone-200">
                 {organizerSubmissions.map((s) => (
                   <li
                     key={s.id}
@@ -260,7 +263,7 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
                   </li>
                 ))}
               </ul>
-            </div>
+            </details>
           ) : null}
 
           {canManageDeletion ? (
