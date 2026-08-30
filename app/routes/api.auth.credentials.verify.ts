@@ -1,4 +1,5 @@
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
+import { deviceLabelFromUA } from "~/lib/ua";
 import { getAuth } from "~/server/auth.server";
 import { getServerContext } from "~/server/context.server";
 import { webauthnCredentials } from "~/server/db/schema";
@@ -35,7 +36,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       publicKey: credential.publicKey,
       counter: credential.counter,
       transports: credential.transports,
-      deviceName: pending.deviceName ?? null,
+      deviceName: pending.deviceName ?? deviceLabelFromUA(request.headers.get("user-agent")),
     });
   } catch {
     return Response.json({ error: "このパスキーは既に登録されています" }, { status: 409 });

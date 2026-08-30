@@ -1,5 +1,6 @@
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { eq } from "drizzle-orm";
+import { deviceLabelFromUA } from "~/lib/ua";
 import { createMemberSession } from "~/server/auth.server";
 import { getServerContext } from "~/server/context.server";
 import { accountRecoveryCodes, webauthnCredentials } from "~/server/db/schema";
@@ -52,7 +53,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       publicKey: credential.publicKey,
       counter: credential.counter,
       transports: credential.transports,
-      deviceName: null,
+      deviceName: deviceLabelFromUA(request.headers.get("user-agent")),
     });
   } catch {
     return Response.json({ error: "このパスキーは既に登録されています" }, { status: 409 });

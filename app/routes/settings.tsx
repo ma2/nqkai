@@ -1,6 +1,7 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { useRef, useState } from "react";
-import { data, Form, redirect, useRevalidator } from "react-router";
+import { data, Form, Link, redirect, useRevalidator } from "react-router";
+import { ORG_ROLE_LABEL } from "~/lib/constants";
 import { newId } from "~/lib/id";
 import { profileUpdateSchema } from "~/lib/schemas";
 import { addPasskey } from "~/lib/webauthn-client";
@@ -11,7 +12,12 @@ import {
   requireAuth,
 } from "~/server/auth.server";
 import { getServerContext } from "~/server/context.server";
-import { users, webauthnCredentials } from "~/server/db/schema";
+import {
+  organizationMemberships,
+  organizations,
+  users,
+  webauthnCredentials,
+} from "~/server/db/schema";
 import { assertTrustedRequest, firstZodError } from "~/server/http.server";
 import type { Route } from "./+types/settings";
 
@@ -36,16 +42,35 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     .orderBy(asc(webauthnCredentials.createdAt))
     .all();
 
+  const managedOrgs = await db
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      role: organizationMemberships.role,
+    })
+    .from(organizationMemberships)
+    .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
+    .where(
+      and(
+        eq(organizationMemberships.userId, auth.user.id),
+        inArray(organizationMemberships.role, ["admin", "deputy_admin"]),
+      ),
+    )
+    .orderBy(organizations.name)
+    .all();
+
   return {
     user: {
       id: auth.user.id,
       haigo: auth.user.haigo,
       email: auth.user.email,
+      isSystemAdmin: auth.user.isSystemAdmin,
       avatarUrl: auth.user.avatarKey
         ? `/api/avatars/${auth.user.id}?v=${auth.user.updatedAt.getTime()}`
         : null,
     },
     credentials,
+    managedOrgs,
   };
 }
 
@@ -147,8 +172,13 @@ function fmtDate(d: Date | null): string {
   return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" }).format(d);
 }
 
+function credentialLabel(c: { deviceName: string | null; createdAt: Date }): string {
+  if (c.deviceName) return c.deviceName;
+  return `パスキー（登録 ${new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium" }).format(c.createdAt)}）`;
+}
+
 export default function Settings({ loaderData, actionData }: Route.ComponentProps) {
-  const { user, credentials } = loaderData;
+  const { user, credentials, managedOrgs } = loaderData;
   const revalidator = useRevalidator();
   const deviceNameRef = useRef<HTMLInputElement>(null);
   const [adding, setAdding] = useState(false);
@@ -196,7 +226,25 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
               {user.haigo.slice(0, 1)}
             </div>
           )}
-          <div className="text-sm text-stone-500">{user.email}</div>
+          <div className="space-y-1">
+            <div className="text-sm text-stone-500">{user.email}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {user.isSystemAdmin ? (
+                <span className="rounded bg-stone-900 px-2 py-0.5 text-xs text-white">
+                  システム管理者
+                </span>
+              ) : null}
+              {managedOrgs.map((o) => (
+                <Link
+                  key={o.id}
+                  to={`/orgs/${o.id}/admin`}
+                  className="rounded bg-stone-100 px-2 py-0.5 text-xs text-stone-700 hover:bg-stone-200"
+                >
+                  {o.name}・{ORG_ROLE_LABEL[o.role]}
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
 
         <Form method="post" className="flex items-end gap-3">
@@ -219,13 +267,17 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
           </button>
         </Form>
 
-        <Form method="post" encType="multipart/form-data" className="flex items-center gap-3">
+        <Form
+          method="post"
+          encType="multipart/form-data"
+          className="flex flex-wrap items-center gap-3"
+        >
           <input type="hidden" name="intent" value="avatar" />
           <input
             type="file"
             name="file"
             accept="image/png,image/jpeg,image/webp"
-            className="text-sm"
+            className="text-sm text-stone-600 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-stone-100 file:px-3 file:py-1.5 file:text-stone-700 hover:file:bg-stone-200"
           />
           <button
             type="submit"
@@ -250,7 +302,7 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
           {credentials.map((c) => (
             <li key={c.id} className="flex items-center justify-between px-3 py-2 text-sm">
               <div>
-                <div className="font-medium">{c.deviceName || "（名称なし）"}</div>
+                <div className="font-medium">{credentialLabel(c)}</div>
                 <div className="text-stone-500">
                   登録 {fmtDate(c.createdAt)} ／ 最終利用 {fmtDate(c.lastUsedAt)}
                 </div>
