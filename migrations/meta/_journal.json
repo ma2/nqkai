@@ -15,6 +15,13 @@
       "when": 1788059308485,
       "tag": "0001_orgs_and_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788068871881,
+      "tag": "0002_org_image",
+      "breakpoints": true
     }
   ]
 }
