@@ -24,3 +24,8 @@ export function json(data: unknown, init?: ResponseInit): Response {
 export function firstZodError(error: { issues: { message: string }[] }): string {
   return error.issues[0]?.message ?? "入力内容を確認してください";
 }
+
+/** Cloudflare が付与するクライアント IP（監査ログ用） */
+export function clientIp(request: Request): string | null {
+  return request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for") ?? null;
+}

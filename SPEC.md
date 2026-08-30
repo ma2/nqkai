@@ -879,6 +879,7 @@ Submission ||--o{ Comment
 | `/` | `routes/_index.tsx` | ダッシュボード（所属結社、進行中の句会、通知） | 要 |
 | `/login` `/register` | `routes/login.tsx` `routes/register.tsx` | パスキー認証 | 不要 |
 | `/recover` | `routes/recover.tsx` | パスキー復旧（依頼 / コード入力）「5.5」 | 不要 |
+| `/notifications` | `routes/notifications.tsx` | アプリ内通知一覧・既読 | 要 |
 | `/settings` | `routes/settings.tsx` | プロフィール・パスキー管理 | 要 |
 | `/orgs` `/orgs/new` `/orgs/:orgId` | `routes/orgs._index.tsx` ほか | 結社一覧・作成・詳細 | 詳細は一部公開 |
 | `/orgs/:orgId/admin` | `routes/orgs.$orgId.admin.tsx` | 結社管理（申請・メンバー・句会・インポート・**パスキー復旧**） | 管理者・副管理者 |
@@ -1021,16 +1022,21 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 - ✅ `root.tsx` レイアウト（認証状態 loader、通知ベル（件数のみ）、エラーバウンダリ）、ログイン / 登録 / 設定 / ダッシュボード、レスポンシブ土台、縦書きユーティリティ
 - ✅ テスト：Vitest（純粋関数）+ Playwright（CDP 仮想認証子でパスキー登録→ログインの E2E）
 - ✅ Cloudflare 実リソース（`nqkai-staging` / `nqkai-prod` の D1・R2・KV）、両環境デプロイ・リモート D1 マイグレーション・GitHub Secrets 済み。CI/CD で `dev`→staging / `main`→production を実地確認
-- ⏳ `main` ブランチ保護ルールセットを `Active` にする（構成済み・enforcement disabled）
+- ✅ `main` ブランチ保護ルールセット Active
 - ⏳ フォローアップ：複数パスキー登録の推奨バナー（案E、「5.1」）
 
-### フェーズ2：結社
+### フェーズ2：結社 ✅ 実装済み
 
-- 結社の作成・編集・一覧・詳細
-- 参加申請 → 承認 / 却下（アプリ内通知）
-- メンバー一覧、自主退会・強制退会
-- 管理者・副管理者の権限、結社の閉鎖・再開
-- **アカウント復旧（案D、「5.5」）**：`recovery_requests` / `account_recovery_codes` テーブル、`/recover` 画面、結社管理画面の依頼一覧・コード発行、`/api/auth/recovery/redeem/*` リソースルート、発行・使用の監査と通知
+- ✅ 結社の作成・編集・一覧・詳細（`/orgs`、`/orgs/new`、`/orgs/:orgId`、`/orgs/:orgId/admin`）
+- ✅ 参加申請 → 承認 / 却下 / 取り下げ（アプリ内通知）。部分ユニークで多重申請を防止
+- ✅ メンバー一覧、自主退会・強制退会（最後の管理者は保護）
+- ✅ 管理者・副管理者の権限（`authz.server.ts` の `canManageOrg` / `isOrgAdmin`）、結社の閉鎖・再開
+- ✅ **アカウント復旧（案D、「5.5」）**：`recovery_requests` / `account_recovery_codes` テーブル、`/recover`（依頼 / コード再登録の2モード）、結社管理画面の依頼一覧・メンバー行からのコード発行（一度だけ表示）、`/api/auth/recovery/redeem/{options,verify}` リソースルート、発行・使用時の監査（IP/UA）と同結社の他管理者への通知、再登録で全セッション失効
+- ✅ アプリ内通知一覧 `/notifications`（既読 / 全既読）、ヘッダの未読バッジ
+- ✅ KV レートリミッタ（`ratelimit.server.ts`、復旧依頼に適用）
+- ✅ ダッシュボードに所属結社・未読通知
+- ✅ テスト：Vitest（復旧コード生成・正規化）+ Playwright（結社作成→申請→承認→役割反映→復旧コード発行→別端末で再登録）
+- マイグレーション `0001_orgs_and_recovery.sql`
 
 ### フェーズ3：句会の基本サイクル（MVP）
 

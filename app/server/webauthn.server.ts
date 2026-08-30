@@ -51,21 +51,30 @@ interface PendingRegistration {
   haigo: string;
   userId: string;
   deviceName?: string;
+  /** mode = "recover" のとき、検証済みの復旧コード行 ID を束縛する */
+  codeId?: string;
 }
 
-export async function startRegistration(
-  env: Env,
-  args:
-    | { mode: "new"; email: string; haigo: string }
-    | {
-        mode: "add";
-        userId: string;
-        email: string;
-        haigo: string;
-        existing: StoredCredential[];
-        deviceName?: string;
-      },
-) {
+type StartRegistrationArgs =
+  | { mode: "new"; email: string; haigo: string }
+  | {
+      mode: "add";
+      userId: string;
+      email: string;
+      haigo: string;
+      existing: StoredCredential[];
+      deviceName?: string;
+    }
+  | {
+      mode: "recover";
+      userId: string;
+      email: string;
+      haigo: string;
+      existing: StoredCredential[];
+      codeId: string;
+    };
+
+export async function startRegistration(env: Env, args: StartRegistrationArgs) {
   const { rpID, rpName } = rp(env);
   const userId = args.mode === "new" ? newId() : args.userId;
 
@@ -76,7 +85,7 @@ export async function startRegistration(
     userDisplayName: args.haigo,
     userID: new TextEncoder().encode(userId),
     attestationType: "none",
-    excludeCredentials: args.mode === "add" ? toAllowList(args.existing) : [],
+    excludeCredentials: args.mode === "new" ? [] : toAllowList(args.existing),
     authenticatorSelection: {
       residentKey: "preferred",
       userVerification: "preferred",
@@ -90,6 +99,7 @@ export async function startRegistration(
     haigo: args.haigo,
     userId,
     deviceName: args.mode === "add" ? args.deviceName : undefined,
+    codeId: args.mode === "recover" ? args.codeId : undefined,
   };
   await env.KV.put(`reg:${tempId}`, JSON.stringify(pending), {
     expirationTtl: WEBAUTHN_CHALLENGE_TTL_SECONDS,
