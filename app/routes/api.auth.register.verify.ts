@@ -1,5 +1,6 @@
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { newToken } from "~/lib/id";
+import { deviceLabelFromUA } from "~/lib/ua";
 import { createMemberSession } from "~/server/auth.server";
 import { getServerContext } from "~/server/context.server";
 import { users, webauthnCredentials } from "~/server/db/schema";
@@ -35,7 +36,7 @@ export async function action({ request, context }: Route.ActionArgs) {
         publicKey: credential.publicKey,
         counter: credential.counter,
         transports: credential.transports,
-        deviceName: pending.deviceName ?? null,
+        deviceName: pending.deviceName ?? deviceLabelFromUA(request.headers.get("user-agent")),
       }),
     ]);
   } catch {
