@@ -1,7 +1,8 @@
 import { Link } from "react-router";
-import { ORG_ROLE_LABEL } from "~/lib/constants";
+import { KUKAI_PHASE_LABEL, ORG_ROLE_LABEL } from "~/lib/constants";
 import { requireAuth } from "~/server/auth.server";
 import { getServerContext } from "~/server/context.server";
+import { listActiveKukaiForUser } from "~/server/kukai.server";
 import { countUnread } from "~/server/notifications.server";
 import { listMyOrganizations } from "~/server/orgs.server";
 import type { Route } from "./+types/_index";
@@ -11,15 +12,16 @@ export const meta: Route.MetaFunction = () => [{ title: "ダッシュボード �
 export async function loader({ request, context }: Route.LoaderArgs) {
   const { db } = getServerContext(context);
   const auth = await requireAuth(db, request);
-  const [orgs, unread] = await Promise.all([
+  const [orgs, unread, kukai] = await Promise.all([
     listMyOrganizations(db, auth.user.id),
     countUnread(db, auth.user.id),
+    listActiveKukaiForUser(db, auth.user.id),
   ]);
-  return { haigo: auth.user.haigo, orgs, unread };
+  return { haigo: auth.user.haigo, orgs, unread, kukai };
 }
 
 export default function Dashboard({ loaderData }: Route.ComponentProps) {
-  const { haigo, orgs, unread } = loaderData;
+  const { haigo, orgs, unread, kukai } = loaderData;
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold">ようこそ、{haigo} さん</h1>
@@ -73,7 +75,23 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
 
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">進行中の句会</h2>
-        <p className="text-sm text-stone-500">句会機能は準備中です（フェーズ3）。</p>
+        {kukai.length === 0 ? (
+          <p className="text-sm text-stone-500">進行中の句会はありません。</p>
+        ) : (
+          <ul className="divide-y divide-stone-200 rounded border border-stone-200 bg-white">
+            {kukai.map((kk) => (
+              <li key={kk.id} className="flex items-center justify-between px-4 py-2 text-sm">
+                <Link to={`/kukai/${kk.id}`} className="font-medium hover:underline">
+                  {kk.name}
+                  <span className="ml-2 text-stone-400">{kk.orgName}</span>
+                </Link>
+                <span className="text-stone-500">
+                  {KUKAI_PHASE_LABEL[kk.phase as keyof typeof KUKAI_PHASE_LABEL] ?? kk.phase}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <p>

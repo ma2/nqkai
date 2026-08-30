@@ -22,6 +22,13 @@
       "when": 1788068871881,
       "tag": "0002_org_image",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788069797946,
+      "tag": "0003_kukai_cycle",
+      "breakpoints": true
     }
   ]
 }

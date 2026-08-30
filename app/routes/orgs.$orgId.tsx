@@ -1,10 +1,11 @@
 import { data, Form, Link, redirect } from "react-router";
-import { ORG_ROLE_LABEL } from "~/lib/constants";
+import { KUKAI_PHASE_LABEL, ORG_ROLE_LABEL } from "~/lib/constants";
 import { joinRequestSchema } from "~/lib/schemas";
 import { getAuth, requireAuth } from "~/server/auth.server";
 import { canManageOrg, loadOrgContext } from "~/server/authz.server";
 import { getServerContext } from "~/server/context.server";
 import { assertTrustedRequest } from "~/server/http.server";
+import { listKukaiForOrg } from "~/server/kukai.server";
 import {
   createJoinRequest,
   getOrganizationOverview,
@@ -23,6 +24,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const auth = await getAuth(db, request);
   const ctx = await loadOrgContext(db, params.orgId, auth?.user.id ?? null);
   const overview = await getOrganizationOverview(db, params.orgId, auth?.user.id ?? null);
+  const kukaiList = await listKukaiForOrg(db, params.orgId, false);
 
   return {
     org: {
@@ -39,6 +41,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     pendingRequest: overview.pendingRequest,
     canManage: canManageOrg(ctx, auth?.user.isSystemAdmin ?? false),
     isAuthed: !!auth,
+    kukaiList: kukaiList.map((x) => ({ id: x.id, name: x.name, phase: x.phase })),
   };
 }
 
@@ -77,7 +80,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
 }
 
 export default function OrgDetail({ loaderData, actionData }: Route.ComponentProps) {
-  const { org, role, memberCount, pendingRequest, canManage, isAuthed } = loaderData;
+  const { org, role, memberCount, pendingRequest, canManage, isAuthed, kukaiList } = loaderData;
 
   return (
     <div className="space-y-6">
@@ -107,6 +110,33 @@ export default function OrgDetail({ loaderData, actionData }: Route.ComponentPro
       {org.description ? (
         <p className="whitespace-pre-wrap text-stone-700">{org.description}</p>
       ) : null}
+
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">句会</h2>
+          {role ? (
+            <Link to={`/orgs/${org.id}/kukai/new`} className="text-sm text-stone-600 underline">
+              句会を作成
+            </Link>
+          ) : null}
+        </div>
+        {kukaiList.length === 0 ? (
+          <p className="text-sm text-stone-500">まだ句会がありません。</p>
+        ) : (
+          <ul className="divide-y divide-stone-200 rounded border border-stone-200 bg-white">
+            {kukaiList.map((kk) => (
+              <li key={kk.id} className="flex items-center justify-between px-4 py-2 text-sm">
+                <Link to={`/kukai/${kk.id}`} className="font-medium hover:underline">
+                  {kk.name}
+                </Link>
+                <span className="text-stone-500">
+                  {KUKAI_PHASE_LABEL[kk.phase as keyof typeof KUKAI_PHASE_LABEL] ?? kk.phase}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {actionData && "ok" in actionData && actionData.ok ? (
         <p className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">{actionData.ok}</p>

@@ -13,6 +13,13 @@ export default [
   route("orgs/new", "routes/orgs.new.tsx"),
   route("orgs/:orgId", "routes/orgs.$orgId.tsx"),
   route("orgs/:orgId/admin", "routes/orgs.$orgId.admin.tsx"),
+  route("orgs/:orgId/kukai/new", "routes/orgs.$orgId.kukai.new.tsx"),
+
+  // 句会
+  route("kukai/:kukaiId", "routes/kukai.$kukaiId.tsx"),
+  route("kukai/:kukaiId/submit", "routes/kukai.$kukaiId.submit.tsx"),
+  route("kukai/:kukaiId/select", "routes/kukai.$kukaiId.select.tsx"),
+  route("kukai/:kukaiId/results", "routes/kukai.$kukaiId.results.tsx"),
 
   // リソースルート（コンポーネントを持たず Response を返す）
   ...prefix("api", [
@@ -28,5 +35,6 @@ export default [
     ]),
     route("avatars/:userId", "routes/api.avatars.$userId.ts"),
     route("orgs/:orgId/image", "routes/api.orgs.$orgId.image.ts"),
+    route("kukai/:kukaiId/state", "routes/api.kukai.$kukaiId.state.ts"),
   ]),
 ] satisfies RouteConfig;
