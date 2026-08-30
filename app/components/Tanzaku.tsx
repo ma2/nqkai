@@ -15,14 +15,10 @@ export function Tanzaku({
   sealAnimate?: boolean;
 }) {
   return (
-    <div className="relative w-[3.25rem] shrink-0 self-start border-x border-rule bg-washi-edge/50 px-1.5 py-3">
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-y-2 right-[3px] w-px bg-rule"
-      />
-      <p className="tategaki mx-auto min-h-[8rem] text-[1.2rem] text-sumi">{content}</p>
+    <div className="relative w-40 shrink-0 self-start border-x border-rule bg-washi-edge/50 px-8 py-6">
+      <p className="tategaki mx-auto min-h-[8rem] text-[1.45rem] text-sumi">{content}</p>
       {sealed ? (
-        <span className="absolute bottom-1 left-1">
+        <span className="absolute bottom-1.5 left-1.5">
           <Seal size={20} animate={sealAnimate} />
         </span>
       ) : null}
@@ -55,12 +51,12 @@ export function TanzakuItem({
   children: ReactNode;
 }) {
   return (
-    <li className="flex flex-col gap-3 rounded-[3px] border border-rule p-3 sm:flex-row sm:items-start">
+    <li className="flex flex-col gap-4 rounded-[3px] border border-rule p-3 sm:flex-row sm:items-start sm:gap-6">
       <div className="flex shrink-0 items-start gap-2">
         {lead}
         <Tanzaku content={content} sealed={sealed} sealAnimate={sealAnimate} />
       </div>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0 flex-1 sm:max-w-md">{children}</div>
     </li>
   );
 }
