@@ -34,13 +34,23 @@ test("結社の作成→参加申請→承認→パスキー復旧", async ({ br
   await addAuthenticator(adminCtx, admin);
   await register(admin, adminEmail, "主宰");
 
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "base64",
+  );
+
   await admin.goto("/orgs/new");
   await admin.getByLabel("結社名").fill(`テスト結社 ${stamp}`);
   await admin.getByLabel("説明（任意）").fill("E2E 用");
+  await admin
+    .getByLabel(/画像（任意/)
+    .setInputFiles({ name: "org.png", mimeType: "image/png", buffer: png });
   await admin.getByRole("button", { name: "作成" }).click();
   await expect(admin).toHaveURL(/\/orgs\/[0-9a-f-]{36}$/);
   const orgUrl = admin.url();
   await expect(admin.getByText(/あなたの役割：管理者/)).toBeVisible();
+  // 画像が配信される
+  await expect(admin.locator('img[src*="/api/orgs/"]')).toBeVisible();
 
   // --- メンバー：登録して参加申請 ---
   const memberCtx = await browser.newContext();

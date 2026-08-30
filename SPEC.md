@@ -446,6 +446,7 @@ Submission ||--o{ Comment
 | id | TEXT PK | UUID（公開 URL に使用） |
 | name | TEXT | |
 | description | TEXT | |
+| image_key | TEXT NULL | R2 のオブジェクトキー（結社の画像。任意） |
 | status | TEXT | `open` / `closed` |
 | created_by | TEXT FK → users | |
 | created_at / updated_at | INTEGER | |
@@ -709,7 +710,7 @@ Submission ||--o{ Comment
 
 ### 9.2 結社
 
-- 作成：任意のログインユーザーが名称・説明を指定して作成。作成者が `admin`。
+- 作成：任意のログインユーザーが名称・説明・画像（任意）を指定して作成。作成者が `admin`。画像は結社管理画面でも変更・削除できる（R2、`image/png|jpeg|webp`・2MB）。
 - 一覧・詳細：結社の公開情報（名称・説明・メンバー数・開催中の句会）を表示。
 - 参加申請：ユーザーが結社詳細から申請（任意メッセージ付き）。`organization_join_requests` に `pending` で作成し、管理者・副管理者へ `join_request_received` 通知。
 - 承認 / 却下：管理者・副管理者が申請一覧から操作。
@@ -855,6 +856,7 @@ Submission ||--o{ Comment
 | `POST /api/auth/recovery/redeem/options` `.../verify` | 復旧コードの検証 + パスキー再登録セレモニー（「5.5」） | 未認証（メール + コード必須） |
 | `GET  /api/kukai/:kukaiId/state` | 軽量ポーリング用の状態（`phase` / `authors_revealed_at` / 各種カウンタ / `server_time`） | 閲覧可能者 |
 | `GET  /api/avatars/:userId` | R2 からプロフィール画像を stream（`Cache-Control` 付与） | 公開 |
+| `GET  /api/orgs/:orgId/image` | R2 から結社画像を stream | 公開 |
 | `GET  /api/kukai/:kukaiId/export?format=text\|csv` | 句会エクスポートのダウンロード | 主催者・結社管理者・副管理者 |
 | `GET  /api/u/:publicId/haiku.txt` | 個人俳句エクスポート（テキスト）のダウンロード | 本人 |
 
@@ -1033,6 +1035,7 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 - ✅ 管理者・副管理者の権限（`authz.server.ts` の `canManageOrg` / `isOrgAdmin`）、結社の閉鎖・再開
 - ✅ **アカウント復旧（案D、「5.5」）**：`recovery_requests` / `account_recovery_codes` テーブル、`/recover`（依頼 / コード再登録の2モード）、結社管理画面の依頼一覧・メンバー行からのコード発行（一度だけ表示）、`/api/auth/recovery/redeem/{options,verify}` リソースルート、発行・使用時の監査（IP/UA）と同結社の他管理者への通知、再登録で全セッション失効
 - ✅ アプリ内通知一覧 `/notifications`（既読 / 全既読）、ヘッダの未読バッジ
+- ✅ 結社の画像（作成/管理画面でアップロード、R2、`/api/orgs/:orgId/image` で配信）— issue #6
 - ✅ KV レートリミッタ（`ratelimit.server.ts`、復旧依頼に適用）
 - ✅ ダッシュボードに所属結社・未読通知
 - ✅ テスト：Vitest（復旧コード生成・正規化）+ Playwright（結社作成→申請→承認→役割反映→復旧コード発行→別端末で再登録）

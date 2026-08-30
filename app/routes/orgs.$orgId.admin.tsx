@@ -1,5 +1,6 @@
 import { data, Form } from "react-router";
 import { ORG_ROLE_LABEL } from "~/lib/constants";
+import { newId } from "~/lib/id";
 import { orgUpdateSchema } from "~/lib/schemas";
 import { requireAuth } from "~/server/auth.server";
 import {
@@ -10,6 +11,7 @@ import {
 } from "~/server/authz.server";
 import { getServerContext } from "~/server/context.server";
 import { assertTrustedRequest, clientIp, firstZodError } from "~/server/http.server";
+import { replaceImage, validateImageUpload } from "~/server/images.server";
 import {
   approveJoinRequest,
   listMembers,
@@ -18,6 +20,7 @@ import {
   rejectJoinRequest,
   removeMember,
   setMemberRole,
+  setOrganizationImageKey,
   setOrganizationStatus,
   updateOrganization,
 } from "~/server/orgs.server";
@@ -44,6 +47,9 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       name: ctx.organization.name,
       description: ctx.organization.description,
       status: ctx.organization.status,
+      imageUrl: ctx.organization.imageKey
+        ? `/api/orgs/${ctx.organization.id}/image?v=${ctx.organization.updatedAt.getTime()}`
+        : null,
     },
     canAdmin: isOrgAdmin(ctx, auth.user.isSystemAdmin),
     myUserId: auth.user.id,
@@ -55,7 +61,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
 export async function action({ request, params, context }: Route.ActionArgs) {
   assertTrustedRequest(request);
-  const { db } = getServerContext(context);
+  const { env, db } = getServerContext(context);
   const auth = await requireAuth(db, request);
   const ctx = await loadOrgContext(db, params.orgId, auth.user.id);
   assertCanManageOrg(ctx, auth.user.isSystemAdmin);
@@ -74,6 +80,19 @@ export async function action({ request, params, context }: Route.ActionArgs) {
         if (!parsed.success) return data({ error: firstZodError(parsed.error) }, { status: 422 });
         await updateOrganization(db, orgId, parsed.data);
         return data({ ok: "結社情報を更新しました" });
+      }
+      case "orgImage": {
+        const v = validateImageUpload(form.get("image"));
+        if ("error" in v) return data({ error: v.error }, { status: 422 });
+        const key = `orgs/${orgId}/${newId()}`;
+        await replaceImage(env.BUCKET, key, v.file, ctx.organization.imageKey);
+        await setOrganizationImageKey(db, orgId, key);
+        return data({ ok: "結社の画像を更新しました" });
+      }
+      case "deleteOrgImage": {
+        if (ctx.organization.imageKey) await env.BUCKET.delete(ctx.organization.imageKey);
+        await setOrganizationImageKey(db, orgId, null);
+        return data({ ok: "結社の画像を削除しました" });
       }
       case "approveJoin":
         await approveJoinRequest(db, String(form.get("requestId")), orgId, auth.user.id);
@@ -192,6 +211,49 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
             保存
           </button>
         </Form>
+
+        <div className="flex flex-wrap items-center gap-4 pt-2">
+          {org.imageUrl ? (
+            <img
+              src={org.imageUrl}
+              alt=""
+              className="size-20 rounded object-cover"
+              width={80}
+              height={80}
+            />
+          ) : (
+            <div className="grid size-20 place-items-center rounded bg-stone-100 text-xs text-stone-400">
+              画像なし
+            </div>
+          )}
+          <Form
+            method="post"
+            encType="multipart/form-data"
+            className="flex flex-wrap items-center gap-3"
+          >
+            <input type="hidden" name="intent" value="orgImage" />
+            <input
+              type="file"
+              name="image"
+              accept="image/png,image/jpeg,image/webp"
+              className="text-sm text-stone-600 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-stone-100 file:px-3 file:py-1.5 file:text-stone-700 hover:file:bg-stone-200"
+            />
+            <button
+              type="submit"
+              className="rounded border border-stone-300 px-3 py-2 text-sm hover:bg-stone-100"
+            >
+              画像を更新
+            </button>
+          </Form>
+          {org.imageUrl ? (
+            <Form method="post">
+              <input type="hidden" name="intent" value="deleteOrgImage" />
+              <button type="submit" className="text-sm text-stone-500 underline">
+                画像を削除
+              </button>
+            </Form>
+          ) : null}
+        </div>
       </section>
 
       {/* 参加申請 */}

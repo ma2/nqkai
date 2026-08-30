@@ -34,18 +34,29 @@ export default function OrgsIndex({ loaderData }: Route.ComponentProps) {
       ) : (
         <ul className="divide-y divide-stone-200 rounded border border-stone-200 bg-white">
           {organizations.map((o) => (
-            <li key={o.id} className="px-4 py-3">
-              <Link to={`/orgs/${o.id}`} className="font-medium hover:underline">
-                {o.name}
-              </Link>
-              {o.status === "closed" ? (
-                <span className="ml-2 rounded bg-stone-200 px-1.5 py-0.5 text-xs text-stone-600">
-                  閉鎖
-                </span>
+            <li key={o.id} className="flex gap-3 px-4 py-3">
+              {o.imageKey ? (
+                <img
+                  src={`/api/orgs/${o.id}/image?v=${new Date(o.updatedAt).getTime()}`}
+                  alt=""
+                  className="size-12 shrink-0 rounded object-cover"
+                  width={48}
+                  height={48}
+                />
               ) : null}
-              <div className="text-sm text-stone-500">
-                メンバー {o.memberCount} 名
-                {o.description ? ` ／ ${o.description.slice(0, 60)}` : ""}
+              <div>
+                <Link to={`/orgs/${o.id}`} className="font-medium hover:underline">
+                  {o.name}
+                </Link>
+                {o.status === "closed" ? (
+                  <span className="ml-2 rounded bg-stone-200 px-1.5 py-0.5 text-xs text-stone-600">
+                    閉鎖
+                  </span>
+                ) : null}
+                <div className="text-sm text-stone-500">
+                  メンバー {o.memberCount} 名
+                  {o.description ? ` ／ ${o.description.slice(0, 60)}` : ""}
+                </div>
               </div>
             </li>
           ))}

@@ -47,6 +47,8 @@ export async function listOrganizations(db: Db) {
       name: organizations.name,
       description: organizations.description,
       status: organizations.status,
+      imageKey: organizations.imageKey,
+      updatedAt: organizations.updatedAt,
       memberCount: sql<number>`(
         select count(*) from ${organizationMemberships}
         where ${organizationMemberships.organizationId} = ${organizations.id}
@@ -67,6 +69,22 @@ export async function updateOrganization(
     .update(organizations)
     .set({ name: input.name, description: input.description ?? "", updatedAt: new Date() })
     .where(eq(organizations.id, orgId));
+}
+
+export async function setOrganizationImageKey(db: Db, orgId: string, imageKey: string | null) {
+  await db
+    .update(organizations)
+    .set({ imageKey, updatedAt: new Date() })
+    .where(eq(organizations.id, orgId));
+}
+
+export async function getOrganizationImageKey(db: Db, orgId: string): Promise<string | null> {
+  const r = await db
+    .select({ imageKey: organizations.imageKey })
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .get();
+  return r?.imageKey ?? null;
 }
 
 export async function setOrganizationStatus(db: Db, orgId: string, status: "open" | "closed") {

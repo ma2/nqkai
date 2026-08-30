@@ -27,5 +27,6 @@ export default [
       route("recovery/redeem/verify", "routes/api.auth.recovery.redeem.verify.ts"),
     ]),
     route("avatars/:userId", "routes/api.avatars.$userId.ts"),
+    route("orgs/:orgId/image", "routes/api.orgs.$orgId.image.ts"),
   ]),
 ] satisfies RouteConfig;

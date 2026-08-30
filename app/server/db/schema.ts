@@ -97,6 +97,8 @@ export const organizations = sqliteTable("organizations", {
   id: text().primaryKey(),
   name: text().notNull(),
   description: text().notNull().default(""),
+  /** R2 のオブジェクトキー（結社の画像） */
+  imageKey: text(),
   status: text({ enum: ["open", "closed"] })
     .notNull()
     .default("open"),

@@ -1,0 +1,1 @@
+ALTER TABLE `organizations` ADD `image_key` text;

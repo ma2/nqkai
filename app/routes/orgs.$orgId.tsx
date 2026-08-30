@@ -30,6 +30,9 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       name: ctx.organization.name,
       description: ctx.organization.description,
       status: ctx.organization.status,
+      imageUrl: ctx.organization.imageKey
+        ? `/api/orgs/${ctx.organization.id}/image?v=${ctx.organization.updatedAt.getTime()}`
+        : null,
     },
     role: ctx.role,
     memberCount: overview.memberCount,
@@ -78,16 +81,27 @@ export default function OrgDetail({ loaderData, actionData }: Route.ComponentPro
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">
-          {org.name}
-          {org.status === "closed" ? (
-            <span className="ml-2 rounded bg-stone-200 px-2 py-0.5 align-middle text-xs text-stone-600">
-              閉鎖
-            </span>
-          ) : null}
-        </h1>
-        <p className="mt-1 text-sm text-stone-500">メンバー {memberCount} 名</p>
+      <div className="flex items-start gap-4">
+        {org.imageUrl ? (
+          <img
+            src={org.imageUrl}
+            alt=""
+            className="size-20 shrink-0 rounded object-cover"
+            width={80}
+            height={80}
+          />
+        ) : null}
+        <div>
+          <h1 className="text-2xl font-bold">
+            {org.name}
+            {org.status === "closed" ? (
+              <span className="ml-2 rounded bg-stone-200 px-2 py-0.5 align-middle text-xs text-stone-600">
+                閉鎖
+              </span>
+            ) : null}
+          </h1>
+          <p className="mt-1 text-sm text-stone-500">メンバー {memberCount} 名</p>
+        </div>
       </div>
 
       {org.description ? (
