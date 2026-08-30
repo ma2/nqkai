@@ -11,11 +11,15 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 import stylesheet from "./app.css?url";
+import { Logo } from "./components/Logo";
 import { getAuth } from "./server/auth.server";
 import { getServerContext } from "./server/context.server";
 import { countUnread } from "./server/notifications.server";
 
-export const links: Route.LinksFunction = () => [{ rel: "stylesheet", href: stylesheet }];
+export const links: Route.LinksFunction = () => [
+  { rel: "stylesheet", href: stylesheet },
+  { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+];
 
 export const meta: Route.MetaFunction = () => [
   { title: "nQkai" },
@@ -65,8 +69,8 @@ function Header({
   return (
     <header className="border-b border-stone-200 bg-white">
       <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-3">
-        <Link to="/" className="text-lg font-bold tracking-tight">
-          nQkai
+        <Link to="/" aria-label="nQkai ホーム">
+          <Logo />
         </Link>
         <nav className="flex items-center gap-4 text-sm">
           {user ? (

@@ -907,7 +907,11 @@ Submission ||--o{ Comment
 
 - グローバルなクライアント状態管理ライブラリは導入しない。UI ローカル状態は `useState`、URL に載せられるもの（タブ・フィルタ）は検索パラメータに置く。
 
-### 11.4 縦書き表示
+### 11.4 ロゴ
+
+- `app/components/Logo.tsx`（インライン SVG の円相マーク + ワードマーク）。ヘッダと認証系ページ（ログイン / 新規登録 / 復旧）で表示。favicon は `public/favicon.svg`。
+
+### 11.5 縦書き表示
 
 - Tailwind に縦書きユーティリティを追加：
   - `.tategaki { writing-mode: vertical-rl; text-orientation: upright; line-break: strict; }`
@@ -915,7 +919,7 @@ Submission ||--o{ Comment
 - 句カード／選句シート／個人俳句一覧は縦書き。管理系 UI は横書き。
 - モバイルファースト。縦書きブロックは横スクロール可能なコンテナに入れる。
 
-### 11.5 その他 UI 要件
+### 11.6 その他 UI 要件
 
 - レスポンシブ（モバイル対応必須）。
 - モダンブラウザ全般に対応。オフライン非対応。スマホネイティブアプリは作らない。

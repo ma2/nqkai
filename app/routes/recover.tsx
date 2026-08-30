@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { data, Form, Link, redirect, useNavigate, useSearchParams } from "react-router";
+import { Logo } from "~/components/Logo";
 import { recoveryRequestSchema } from "~/lib/schemas";
 import { redeemRecovery } from "~/lib/webauthn-client";
 import { getAuth } from "~/server/auth.server";
@@ -74,6 +75,9 @@ export default function Recover({ actionData }: Route.ComponentProps) {
 
   return (
     <div className="mx-auto max-w-md space-y-6">
+      <Link to="/" className="mx-auto block w-fit py-2">
+        <Logo size={36} />
+      </Link>
       <h1 className="text-xl font-bold">パスキーの復旧</h1>
 
       <div className="flex gap-4 border-b border-stone-200 text-sm">

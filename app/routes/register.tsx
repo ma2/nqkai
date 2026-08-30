@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, redirect, useNavigate } from "react-router";
+import { Logo } from "~/components/Logo";
 import { registerPasskey } from "~/lib/webauthn-client";
 import { getAuth } from "~/server/auth.server";
 import { getServerContext } from "~/server/context.server";
@@ -38,6 +39,9 @@ export default function Register() {
 
   return (
     <div className="mx-auto max-w-sm space-y-6">
+      <Link to="/" className="mx-auto block w-fit py-2">
+        <Logo size={36} />
+      </Link>
       <h1 className="text-xl font-bold">新規登録</h1>
 
       <form className="space-y-4" onSubmit={onSubmit}>

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Link, redirect, useNavigate, useSearchParams } from "react-router";
+import { Logo } from "~/components/Logo";
 import { safeNext } from "~/lib/nav";
 import { loginPasskey } from "~/lib/webauthn-client";
 import { getAuth } from "~/server/auth.server";
@@ -46,6 +47,9 @@ export default function Login() {
 
   return (
     <div className="mx-auto max-w-sm space-y-6">
+      <Link to="/" className="mx-auto block w-fit py-2">
+        <Logo size={36} />
+      </Link>
       <h1 className="text-xl font-bold">ログイン</h1>
 
       <form
