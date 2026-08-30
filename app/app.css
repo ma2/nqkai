@@ -64,20 +64,6 @@ body {
   line-height: 1.15;
 }
 
-/* 短冊を右→左に「吊るした列」。横スクロール＋スナップ。 */
-@utility tanzaku-row {
-  display: flex;
-  gap: 0.75rem;
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  padding-bottom: 0.5rem;
-  direction: rtl;
-}
-.tanzaku-row > * {
-  direction: ltr;
-  scroll-snap-align: end;
-}
-
 @keyframes seal-press {
   0% {
     transform: scale(1.18) rotate(-4deg);

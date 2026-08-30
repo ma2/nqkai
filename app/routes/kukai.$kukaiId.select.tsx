@@ -1,5 +1,5 @@
 import { data, Form, Link } from "react-router";
-import { Tanzaku, TanzakuRow } from "~/components/Tanzaku";
+import { TanzakuItem, TanzakuList } from "~/components/Tanzaku";
 import { ActionNote, Note, PageTitle } from "~/components/ui";
 import { KUKAI_PHASE_LABEL, SELECTION_KIND_LABEL, type SelectionKind } from "~/lib/constants";
 import { commentSchema, selectionSchema } from "~/lib/schemas";
@@ -146,85 +146,82 @@ export default function Select({ loaderData, actionData }: Route.ComponentProps)
       {sheet.length === 0 ? (
         <p className="text-sm text-sumi-soft">選句できる句がありません。</p>
       ) : (
-        <TanzakuRow>
+        <TanzakuList>
           {sheet.map((s) => {
             const chosen = mySelections[s.id];
             const myComments = comments[s.id] ?? [];
             return (
-              <div key={s.id} className="flex shrink-0 gap-2">
-                <Tanzaku content={s.content} sealed={chosen === "special"} sealAnimate />
-                <div className="flex w-44 flex-col gap-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    {KINDS.map((ki) => (
-                      <Form method="post" key={ki}>
-                        <input type="hidden" name="intent" value="select" />
-                        <input type="hidden" name="submissionId" value={s.id} />
-                        <input type="hidden" name="kind" value={ki} />
-                        <button
-                          type="submit"
-                          className={`rounded-[3px] border px-2.5 py-1 text-sm ${
-                            chosen === ki
-                              ? "border-ai bg-ai text-washi"
-                              : "border-rule text-sumi hover:bg-washi-edge"
-                          }`}
-                        >
-                          {SELECTION_KIND_LABEL[ki]}
-                        </button>
-                      </Form>
-                    ))}
-                    {chosen ? (
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="clear" />
-                        <input type="hidden" name="submissionId" value={s.id} />
-                        <button
-                          type="submit"
-                          className="px-1.5 py-1 text-xs text-sumi-soft hover:text-shu"
-                        >
-                          取消
-                        </button>
-                      </Form>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-1">
-                    {myComments.map((c) => (
-                      <div key={c.id} className="flex items-start justify-between gap-1 text-xs">
-                        <p className="whitespace-pre-wrap text-sumi">{c.body}</p>
-                        <Form method="post">
-                          <input type="hidden" name="intent" value="deleteComment" />
-                          <input type="hidden" name="commentId" value={c.id} />
-                          <button
-                            type="submit"
-                            className="shrink-0 text-2xs text-sumi-soft hover:text-shu"
-                          >
-                            削除
-                          </button>
-                        </Form>
-                      </div>
-                    ))}
-                    <Form method="post" className="space-y-1">
-                      <input type="hidden" name="intent" value="comment" />
+              <TanzakuItem key={s.id} content={s.content} sealed={chosen === "special"} sealAnimate>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {KINDS.map((ki) => (
+                    <Form method="post" key={ki}>
+                      <input type="hidden" name="intent" value="select" />
                       <input type="hidden" name="submissionId" value={s.id} />
-                      <input
-                        name="body"
-                        required
-                        maxLength={1000}
-                        placeholder="自分だけのメモ"
-                        className="w-full rounded-[3px] border border-rule bg-transparent px-2 py-1 text-xs outline-none focus:border-ai"
-                      />
+                      <input type="hidden" name="kind" value={ki} />
                       <button
                         type="submit"
-                        className="rounded-[3px] border border-rule px-2 py-0.5 text-2xs text-sumi-soft hover:bg-washi-edge"
+                        className={`rounded-[3px] border px-3 py-1 text-sm ${
+                          chosen === ki
+                            ? "border-ai bg-ai text-washi"
+                            : "border-rule text-sumi hover:bg-washi-edge"
+                        }`}
                       >
-                        書き留める
+                        {SELECTION_KIND_LABEL[ki]}
                       </button>
                     </Form>
-                  </div>
+                  ))}
+                  {chosen ? (
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="clear" />
+                      <input type="hidden" name="submissionId" value={s.id} />
+                      <button
+                        type="submit"
+                        className="px-1.5 py-1 text-xs text-sumi-soft hover:text-shu"
+                      >
+                        取消
+                      </button>
+                    </Form>
+                  ) : null}
                 </div>
-              </div>
+
+                <div className="mt-2 space-y-1">
+                  {myComments.map((c) => (
+                    <div key={c.id} className="flex items-start justify-between gap-2 text-sm">
+                      <p className="whitespace-pre-wrap text-sumi">{c.body}</p>
+                      <Form method="post">
+                        <input type="hidden" name="intent" value="deleteComment" />
+                        <input type="hidden" name="commentId" value={c.id} />
+                        <button
+                          type="submit"
+                          className="shrink-0 text-xs text-sumi-soft hover:text-shu"
+                        >
+                          削除
+                        </button>
+                      </Form>
+                    </div>
+                  ))}
+                  <Form method="post" className="flex items-center gap-2">
+                    <input type="hidden" name="intent" value="comment" />
+                    <input type="hidden" name="submissionId" value={s.id} />
+                    <input
+                      name="body"
+                      required
+                      maxLength={1000}
+                      placeholder="自分だけのメモ（選句中は他の人に見えません）"
+                      className="min-w-0 flex-1 rounded-[3px] border border-rule bg-transparent px-2 py-1 text-sm outline-none focus:border-ai"
+                    />
+                    <button
+                      type="submit"
+                      className="shrink-0 rounded-[3px] border border-rule px-2.5 py-1 text-xs text-sumi-soft hover:bg-washi-edge"
+                    >
+                      書き留める
+                    </button>
+                  </Form>
+                </div>
+              </TanzakuItem>
             );
           })}
-        </TanzakuRow>
+        </TanzakuList>
       )}
     </div>
   );

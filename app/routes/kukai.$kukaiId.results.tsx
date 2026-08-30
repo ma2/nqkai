@@ -1,5 +1,5 @@
 import { data, Form, Link, redirect } from "react-router";
-import { Tanzaku, TanzakuRow } from "~/components/Tanzaku";
+import { TanzakuItem, TanzakuList } from "~/components/Tanzaku";
 import { ActionNote, PageTitle } from "~/components/ui";
 import {
   isAtOrAfter,
@@ -94,70 +94,75 @@ export default function Results({ loaderData, actionData }: Route.ComponentProps
 
       <ActionNote data={actionData} />
 
-      <TanzakuRow>
+      <TanzakuList>
         {rows.map((r) => {
           const cs = comments[r.submissionId] ?? [];
           return (
-            <div key={r.submissionId} className="flex shrink-0 gap-3">
-              <div className="flex flex-col items-center gap-1">
-                <span className="font-mincho text-2xl leading-none text-sumi-soft">
-                  {rankKanji(r.rank)}
-                </span>
-                <span className="rounded-[3px] bg-washi-edge px-1.5 py-0.5 u-data">
-                  {r.score}点
-                </span>
-              </div>
-              <Tanzaku content={r.content} sealed={r.counts.special > 0} />
-              <div className="flex w-52 flex-col gap-1.5">
-                <p className="u-data">
-                  {(["special", "regular", "reverse"] as SelectionKind[])
-                    .filter((ki) => r.counts[ki] > 0)
-                    .map((ki) => `${SELECTION_KIND_LABEL[ki]} ${r.counts[ki]}`)
-                    .join(" ・ ") || "選なし"}
+            <TanzakuItem
+              key={r.submissionId}
+              content={r.content}
+              sealed={r.counts.special > 0}
+              lead={
+                <div className="flex flex-col items-center gap-1">
+                  <span className="font-mincho text-2xl leading-none text-sumi-soft">
+                    {rankKanji(r.rank)}
+                  </span>
+                  <span className="rounded-[3px] bg-washi-edge px-1.5 py-0.5 u-data">
+                    {r.score}点
+                  </span>
+                </div>
+              }
+            >
+              <p className="u-data">
+                {(["special", "regular", "reverse"] as SelectionKind[])
+                  .filter((ki) => r.counts[ki] > 0)
+                  .map((ki) => `${SELECTION_KIND_LABEL[ki]} ${r.counts[ki]}`)
+                  .join(" ・ ") || "選なし"}
+              </p>
+              {r.authorHaigo ? (
+                <p className="mt-1 text-sm text-sumi">作者：{r.authorHaigo}</p>
+              ) : null}
+              {r.selectors.length > 0 ? (
+                <p className="mt-1 text-xs text-sumi-soft">
+                  {r.selectors
+                    .map((s) => `${s.haigo ?? "?"}（${SELECTION_KIND_LABEL[s.kind]}）`)
+                    .join("、")}
                 </p>
-                {r.authorHaigo ? <p className="text-sm text-sumi">作者：{r.authorHaigo}</p> : null}
-                {r.selectors.length > 0 ? (
-                  <p className="text-2xs text-sumi-soft">
-                    {r.selectors
-                      .map((s) => `${s.haigo ?? "?"}（${SELECTION_KIND_LABEL[s.kind]}）`)
-                      .join("、")}
-                  </p>
-                ) : null}
+              ) : null}
 
-                {cs.length > 0 ? (
-                  <ul className="space-y-1 border-t border-rule pt-1.5 text-xs">
-                    {cs.map((c) => (
-                      <li key={c.id}>
-                        <span className="text-sumi-soft">{c.haigo ?? "?"}：</span>
-                        <span className="whitespace-pre-wrap text-sumi">{c.body}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
+              {cs.length > 0 ? (
+                <ul className="mt-2 space-y-1 border-t border-rule pt-2 text-sm">
+                  {cs.map((c) => (
+                    <li key={c.id}>
+                      <span className="text-sumi-soft">{c.haigo ?? "?"}：</span>
+                      <span className="whitespace-pre-wrap text-sumi">{c.body}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
 
-                {canComment ? (
-                  <Form method="post" className="space-y-1">
-                    <input type="hidden" name="submissionId" value={r.submissionId} />
-                    <input
-                      name="body"
-                      required
-                      maxLength={1000}
-                      placeholder="講評コメント"
-                      className="w-full rounded-[3px] border border-rule bg-transparent px-2 py-1 text-xs outline-none focus:border-ai"
-                    />
-                    <button
-                      type="submit"
-                      className="rounded-[3px] border border-rule px-2 py-0.5 text-2xs text-sumi-soft hover:bg-washi-edge"
-                    >
-                      投稿
-                    </button>
-                  </Form>
-                ) : null}
-              </div>
-            </div>
+              {canComment ? (
+                <Form method="post" className="mt-2 flex items-center gap-2">
+                  <input type="hidden" name="submissionId" value={r.submissionId} />
+                  <input
+                    name="body"
+                    required
+                    maxLength={1000}
+                    placeholder="講評コメント"
+                    className="min-w-0 flex-1 rounded-[3px] border border-rule bg-transparent px-2 py-1 text-sm outline-none focus:border-ai"
+                  />
+                  <button
+                    type="submit"
+                    className="shrink-0 rounded-[3px] border border-rule px-2.5 py-1 text-xs text-sumi-soft hover:bg-washi-edge"
+                  >
+                    投稿
+                  </button>
+                </Form>
+              ) : null}
+            </TanzakuItem>
           );
         })}
-      </TanzakuRow>
+      </TanzakuList>
     </div>
   );
 }
