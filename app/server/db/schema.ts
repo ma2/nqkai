@@ -213,6 +213,140 @@ export const accountRecoveryCodes = sqliteTable(
   (t) => [index("account_recovery_codes_user_idx").on(t.userId)],
 );
 
+// ---- フェーズ3：句会 --------------------------------------------------
+// ゲスト（guest_codes / guest_participants）はフェーズ4で追加。
+// author_guest_id / selector_guest_id 列は今は用意だけして未使用（FK なし）。
+
+export const kukai = sqliteTable(
+  "kukai",
+  {
+    id: text().primaryKey(),
+    organizationId: text()
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    organizerId: text()
+      .notNull()
+      .references(() => users.id),
+    name: text().notNull(),
+    description: text().notNull().default(""),
+    theme: text().notNull().default(""),
+    submissionsPerUser: integer().notNull().default(1),
+    specialCount: integer().notNull().default(1),
+    regularCount: integer().notNull().default(5),
+    reverseCount: integer().notNull().default(0),
+    specialPoints: integer().notNull().default(3),
+    regularPoints: integer().notNull().default(1),
+    reversePoints: integer().notNull().default(-1),
+    allowGuest: integer({ mode: "boolean" }).notNull().default(false),
+    guestCanSubmit: integer({ mode: "boolean" }).notNull().default(false),
+    guestCanSelect: integer({ mode: "boolean" }).notNull().default(false),
+    guestCanComment: integer({ mode: "boolean" }).notNull().default(false),
+    visibility: text({ enum: ["public", "private"] })
+      .notNull()
+      .default("private"),
+    phase: text().notNull().default("draft"),
+    scheduledSubmissionStartAt: integer({ mode: "timestamp_ms" }),
+    scheduledSubmissionEndAt: integer({ mode: "timestamp_ms" }),
+    scheduledSelectionStartAt: integer({ mode: "timestamp_ms" }),
+    scheduledSelectionEndAt: integer({ mode: "timestamp_ms" }),
+    scheduledResultAt: integer({ mode: "timestamp_ms" }),
+    scheduledCommentStartAt: integer({ mode: "timestamp_ms" }),
+    scheduledCommentEndAt: integer({ mode: "timestamp_ms" }),
+    authorsRevealedAt: integer({ mode: "timestamp_ms" }),
+    deletedAt: integer({ mode: "timestamp_ms" }),
+    deletedBy: text().references(() => users.id, { onDelete: "set null" }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    index("kukai_org_phase_deleted_idx").on(t.organizationId, t.phase, t.deletedAt),
+    index("kukai_organizer_idx").on(t.organizerId),
+  ],
+);
+
+export const kukaiPhaseEvents = sqliteTable(
+  "kukai_phase_events",
+  {
+    id: text().primaryKey(),
+    kukaiId: text()
+      .notNull()
+      .references(() => kukai.id, { onDelete: "cascade" }),
+    fromPhase: text().notNull(),
+    toPhase: text().notNull(),
+    action: text({ enum: ["advance", "rewind", "extend", "reveal_authors"] }).notNull(),
+    actorId: text()
+      .notNull()
+      .references(() => users.id),
+    note: text(),
+    createdAt,
+  },
+  (t) => [index("kukai_phase_events_kukai_idx").on(t.kukaiId)],
+);
+
+export const submissions = sqliteTable(
+  "submissions",
+  {
+    id: text().primaryKey(),
+    kukaiId: text()
+      .notNull()
+      .references(() => kukai.id, { onDelete: "cascade" }),
+    authorUserId: text().references(() => users.id, { onDelete: "cascade" }),
+    /** フェーズ4のゲスト用（今は常に null、FK なし） */
+    authorGuestId: text(),
+    content: text().notNull(),
+    /** 選句表示のランダム順（投句時に乱数割当、投句締切時に再シャッフル） */
+    sortKey: text().notNull(),
+    isHidden: integer({ mode: "boolean" }).notNull().default(false),
+    hiddenBy: text().references(() => users.id, { onDelete: "set null" }),
+    hiddenReason: text(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [index("submissions_kukai_idx").on(t.kukaiId)],
+);
+
+export const selections = sqliteTable(
+  "selections",
+  {
+    id: text().primaryKey(),
+    kukaiId: text()
+      .notNull()
+      .references(() => kukai.id, { onDelete: "cascade" }),
+    submissionId: text()
+      .notNull()
+      .references(() => submissions.id, { onDelete: "cascade" }),
+    selectorUserId: text().references(() => users.id, { onDelete: "cascade" }),
+    selectorGuestId: text(),
+    kind: text({ enum: ["special", "regular", "reverse"] }).notNull(),
+    createdAt,
+  },
+  (t) => [
+    index("selections_kukai_idx").on(t.kukaiId),
+    // 1つの句に対し1選者は1種別のみ（NULL は distinct 扱いなのでゲスト行と両立）
+    uniqueIndex("selections_submission_user_uq").on(t.submissionId, t.selectorUserId),
+    uniqueIndex("selections_submission_guest_uq").on(t.submissionId, t.selectorGuestId),
+  ],
+);
+
+export const comments = sqliteTable(
+  "comments",
+  {
+    id: text().primaryKey(),
+    kukaiId: text()
+      .notNull()
+      .references(() => kukai.id, { onDelete: "cascade" }),
+    submissionId: text()
+      .notNull()
+      .references(() => submissions.id, { onDelete: "cascade" }),
+    authorUserId: text().references(() => users.id, { onDelete: "cascade" }),
+    authorGuestId: text(),
+    body: text().notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [index("comments_kukai_submission_idx").on(t.kukaiId, t.submissionId)],
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type WebauthnCredential = typeof webauthnCredentials.$inferSelect;
@@ -224,3 +358,8 @@ export type OrgRole = OrganizationMembership["role"];
 export type OrganizationJoinRequest = typeof organizationJoinRequests.$inferSelect;
 export type RecoveryRequest = typeof recoveryRequests.$inferSelect;
 export type AccountRecoveryCode = typeof accountRecoveryCodes.$inferSelect;
+export type Kukai = typeof kukai.$inferSelect;
+export type Submission = typeof submissions.$inferSelect;
+export type Selection = typeof selections.$inferSelect;
+export type SelectionKind = Selection["kind"];
+export type Comment = typeof comments.$inferSelect;

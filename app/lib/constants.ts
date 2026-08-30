@@ -38,3 +38,45 @@ export const ORG_ROLE_LABEL: Record<OrgRole, string> = {
   deputy_admin: "副管理者",
   member: "メンバー",
 };
+
+/** 句会フェーズ（この順に advance / rewind する） */
+export const KUKAI_PHASES = [
+  "draft",
+  "preparing",
+  "submission",
+  "submission_closed",
+  "selection",
+  "selection_closed",
+  "result",
+  "commenting",
+  "comment_closed",
+  "closed",
+] as const;
+export type KukaiPhase = (typeof KUKAI_PHASES)[number];
+
+export const KUKAI_PHASE_LABEL: Record<KukaiPhase, string> = {
+  draft: "準備中",
+  preparing: "受付開始",
+  submission: "投句期間",
+  submission_closed: "投句締切",
+  selection: "選句期間",
+  selection_closed: "選句締切",
+  result: "結果発表",
+  commenting: "講評期間",
+  comment_closed: "講評締切",
+  closed: "終了",
+};
+
+export const SELECTION_KIND_LABEL = {
+  special: "特選",
+  regular: "並選",
+  reverse: "逆選",
+} as const;
+export type SelectionKind = keyof typeof SELECTION_KIND_LABEL;
+
+export function phaseIndex(p: string): number {
+  return (KUKAI_PHASES as readonly string[]).indexOf(p);
+}
+export function isAtOrAfter(phase: string, target: KukaiPhase): boolean {
+  return phaseIndex(phase) >= phaseIndex(target);
+}

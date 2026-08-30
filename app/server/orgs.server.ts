@@ -115,6 +115,16 @@ export async function listMembers(db: Db, orgId: string) {
     .all();
 }
 
+/** 結社の全メンバーのユーザー ID（フェーズ変更通知などの宛先） */
+export async function getOrgMemberUserIds(db: Db, orgId: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: organizationMemberships.userId })
+    .from(organizationMemberships)
+    .where(eq(organizationMemberships.organizationId, orgId))
+    .all();
+  return rows.map((r) => r.userId);
+}
+
 /** 管理者・副管理者のユーザー ID（通知の宛先） */
 export async function getManagerUserIds(db: Db, orgId: string): Promise<string[]> {
   const rows = await db

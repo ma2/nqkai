@@ -70,6 +70,55 @@ export const recoveryRequestSchema = z.object({
   note: z.string().trim().max(500).optional(),
 });
 
+// ---- フェーズ3：句会 --------------------------------------------------
+
+const optionalDate = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v ? new Date(v) : null))
+  .refine((d) => d === null || !Number.isNaN(d.getTime()), "日時の形式が正しくありません");
+
+export const kukaiSettingsSchema = z.object({
+  name: z.string().trim().min(1, "句会名を入力してください").max(80),
+  description: z.string().trim().max(2000).optional().default(""),
+  theme: z.string().trim().max(100).optional().default(""),
+  submissionsPerUser: z.coerce.number().int().min(1).max(20),
+  specialCount: z.coerce.number().int().min(0).max(50),
+  regularCount: z.coerce.number().int().min(0).max(50),
+  reverseCount: z.coerce.number().int().min(0).max(50),
+  specialPoints: z.coerce.number().int().min(-20).max(20),
+  regularPoints: z.coerce.number().int().min(-20).max(20),
+  reversePoints: z.coerce.number().int().min(-20).max(20),
+  visibility: z.enum(["public", "private"]),
+  scheduledSubmissionStartAt: optionalDate,
+  scheduledSubmissionEndAt: optionalDate,
+  scheduledSelectionStartAt: optionalDate,
+  scheduledSelectionEndAt: optionalDate,
+  scheduledResultAt: optionalDate,
+  scheduledCommentStartAt: optionalDate,
+  scheduledCommentEndAt: optionalDate,
+});
+export type KukaiSettingsInput = z.infer<typeof kukaiSettingsSchema>;
+
+export const submissionSchema = z.object({
+  content: z
+    .string()
+    .trim()
+    .min(1, "句を入力してください")
+    .max(120, "120文字以内で入力してください"),
+});
+
+export const selectionSchema = z.object({
+  submissionId: z.string().min(1),
+  kind: z.enum(["special", "regular", "reverse"]),
+});
+
+export const commentSchema = z.object({
+  submissionId: z.string().min(1),
+  body: z.string().trim().min(1, "コメントを入力してください").max(1000),
+});
+
 /** 復旧コードでの再登録開始（未認証） */
 export const recoveryRedeemStartSchema = z.object({
   email: emailSchema,

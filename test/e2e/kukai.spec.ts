@@ -1,0 +1,128 @@
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+
+async function addAuthenticator(context: BrowserContext, page: Page) {
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("WebAuthn.enable");
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+}
+
+async function register(page: Page, email: string, haigo: string) {
+  await page.goto("/register");
+  await page.getByLabel("メールアドレス").fill(email);
+  await page.getByLabel("俳号（表示名）").fill(haigo);
+  await page.getByRole("button", { name: "パスキーを作成して登録" }).click();
+  await expect(page).toHaveURL("/");
+}
+
+async function advance(page: Page, times: number) {
+  for (let i = 0; i < times; i++) {
+    await page.getByRole("button", { name: "次のフェーズ →" }).click();
+    await expect(page.getByText("フェーズを更新しました")).toBeVisible();
+  }
+}
+
+test("句会の1サイクル：作成→投句→選句→結果→作者公開", async ({ browser }) => {
+  const s = Date.now();
+  const aCtx = await browser.newContext();
+  const a = await aCtx.newPage();
+  await addAuthenticator(aCtx, a);
+  await register(a, `kukai-a-${s}@example.com`, "主宰");
+
+  // 結社を作成
+  await a.goto("/orgs/new");
+  await a.getByLabel("結社名").fill(`句会テスト結社 ${s}`);
+  await a.getByRole("button", { name: "作成" }).click();
+  await expect(a).toHaveURL(/\/orgs\/[0-9a-f-]{36}$/);
+  const orgUrl = a.url();
+
+  // メンバー B が登録して参加、A が承認
+  const bCtx = await browser.newContext();
+  const b = await bCtx.newPage();
+  await addAuthenticator(bCtx, b);
+  await register(b, `kukai-b-${s}@example.com`, "門人");
+  await b.goto(orgUrl);
+  await b.getByRole("button", { name: "参加を申請" }).click();
+  await expect(b.getByText("参加申請を送信しました")).toBeVisible();
+  await a.goto(`${orgUrl}/admin`);
+  await expect(a.getByText("門人")).toBeVisible();
+  await a.getByRole("button", { name: "承認" }).click();
+  await expect(a.getByText("参加を承認しました")).toBeVisible();
+
+  // 句会を作成
+  await a.goto(`${orgUrl}/kukai/new`);
+  await a.getByLabel("句会名").fill(`一月例会 ${s}`);
+  await a.getByLabel("兼題（お題）").fill("冬");
+  await a.getByLabel("一人あたり投句数").fill("1");
+  await a.getByLabel("特選の数").fill("1");
+  await a.getByLabel("並選の数").fill("1");
+  await a.getByLabel("逆選の数").fill("0");
+  await Promise.all([
+    a.waitForURL(/\/kukai\/[0-9a-f-]{36}$/),
+    a.getByRole("button", { name: "作成（準備中フェーズ）" }).click(),
+  ]);
+  const kukaiUrl = a.url();
+
+  // 準備中 → 受付開始 → 投句期間
+  await advance(a, 2);
+  await expect(a.getByText("現在：投句期間")).toBeVisible();
+
+  // A が投句
+  await a.getByRole("link", { name: /投句する/ }).click();
+  await a.getByPlaceholder("一句").fill("冬の月 主宰の句");
+  await a.getByRole("button", { name: "投句" }).click();
+  await expect(a.getByText("保存しました")).toBeVisible();
+
+  // B が投句
+  await b.goto(kukaiUrl);
+  await b.getByRole("link", { name: /投句する/ }).click();
+  await b.getByPlaceholder("一句").fill("木枯らし 門人の句");
+  await b.getByRole("button", { name: "投句" }).click();
+  await expect(b.getByText("保存しました")).toBeVisible();
+
+  // 投句締切 → 選句期間
+  await a.goto(kukaiUrl);
+  await advance(a, 2);
+  await expect(a.getByText("現在：選句期間")).toBeVisible();
+
+  // A は B の句だけが見える → 特選
+  await a.getByRole("link", { name: "選句する" }).click();
+  await expect(a.getByText("木枯らし 門人の句")).toBeVisible();
+  await expect(a.getByText("冬の月 主宰の句")).toHaveCount(0);
+  await a.getByRole("button", { name: "特選" }).first().click();
+  await expect(a.getByText("選句を保存しました")).toBeVisible();
+
+  // B も A の句を特選
+  await b.goto(`${kukaiUrl}/select`);
+  await b.getByRole("button", { name: "特選" }).first().click();
+  await expect(b.getByText("選句を保存しました")).toBeVisible();
+
+  // 選句締切 → 結果発表
+  await a.goto(kukaiUrl);
+  await advance(a, 2);
+  await expect(a.getByText("現在：結果発表")).toBeVisible();
+
+  // 結果ページ：順位が出る、作者はまだ非公開
+  await a.getByRole("link", { name: "結果・講評" }).click();
+  await expect(a.getByText(/第1位・3点/).first()).toBeVisible();
+  await expect(a.getByText(/作者：/)).toHaveCount(0);
+
+  // 作者を公開
+  await a.goto(kukaiUrl);
+  await a.getByRole("button", { name: "作者を公開する" }).click();
+  await expect(a.getByText("作者を公開しました")).toBeVisible();
+  await a.getByRole("link", { name: "結果・講評" }).click();
+  await expect(a.getByText("作者：門人")).toBeVisible();
+  await expect(a.getByText("作者：主宰")).toBeVisible();
+
+  await aCtx.close();
+  await bCtx.close();
+});

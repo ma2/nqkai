@@ -1041,14 +1041,17 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 - ✅ テスト：Vitest（復旧コード生成・正規化）+ Playwright（結社作成→申請→承認→役割反映→復旧コード発行→別端末で再登録）
 - マイグレーション `0001_orgs_and_recovery.sql`
 
-### フェーズ3：句会の基本サイクル（MVP）
+### フェーズ3：句会の基本サイクル（MVP）✅ 実装済み
 
-- 句会の作成（全設定項目）・詳細
-- フェーズ状態機械 + 手動遷移 + `phase_events` + ポーリング（`/state`）
-- 投句（追加・修正・削除、上限、締切時シャッフル）
-- 選句（ランダム表示、特選・並選・逆選、上限、自句禁止）
-- 選句中コメント（自分のみ可視）
-- 集計・順位・作者公開制御・コメント公開
+- ✅ 句会の作成（全設定項目）`/orgs/:orgId/kukai/new`、詳細・主催者メニュー `/kukai/:kukaiId`
+- ✅ フェーズ状態機械（`KUKAI_PHASES` の10段階）+ 主催者の手動遷移（advance/rewind）+ `kukai_phase_events` + `extend` + ポーリング（`useKukaiStatePolling` → `/api/kukai/:kukaiId/state`）
+- ✅ 投句 `/kukai/:kukaiId/submit`（追加・修正・削除、上限、`submission` フェーズのみ）。投句締切遷移で `sort_key` を再シャッフル（`hex(randomblob(16))`）
+- ✅ 選句 `/kukai/:kukaiId/select`（`sort_key` 順、自句・非表示除外、特選/並選/逆選の上限、選び直し・取消、自句禁止）
+- ✅ 選句中コメント（自分のみ可視）／`commenting` フェーズで追加コメント、`result` 以降は全員のコメント公開
+- ✅ 集計・順位（同点同順位）・選者内訳・作者公開制御（`authors_revealed_at`、公開まではサーバ側でマスク）`/kukai/:kukaiId/results`
+- ✅ 句の非表示（主催者）、句会の論理削除・復活（主催者 + 結社管理者・副管理者）
+- ✅ テスト：Vitest（フェーズ順序ヘルパ）+ Playwright（作成→フェーズ遷移→投句→締切→選句→結果→作者公開の1サイクル）
+- マイグレーション `0003_kukai_cycle.sql`。**ゲスト（`guest_codes` / `guest_participants`）はフェーズ4で追加**。`submissions` / `selections` / `comments` の `*_guest_id` 列は用意だけして未使用（FK なし）
 
 ### フェーズ4：ゲスト・表示・エクスポート
 
