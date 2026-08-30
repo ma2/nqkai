@@ -1,4 +1,6 @@
 import { data, Form, Link } from "react-router";
+import { Tanzaku, TanzakuRow } from "~/components/Tanzaku";
+import { ActionNote, Note, PageTitle } from "~/components/ui";
 import { KUKAI_PHASE_LABEL, SELECTION_KIND_LABEL, type SelectionKind } from "~/lib/constants";
 import { commentSchema, selectionSchema } from "~/lib/schemas";
 import { requireAuth } from "~/server/auth.server";
@@ -97,17 +99,17 @@ export default function Select({ loaderData, actionData }: Route.ComponentProps)
   if (!loaderData.open) {
     return (
       <div className="mx-auto max-w-xl space-y-4">
-        <p className="text-sm text-stone-500">
-          <Link to={`/kukai/${loaderData.kukaiId}`} className="underline">
+        <p className="text-xs text-sumi-soft">
+          <Link to={`/kukai/${loaderData.kukaiId}`} className="hover:text-ai">
             ← {loaderData.name}
           </Link>
         </p>
-        <p className="rounded bg-stone-100 px-3 py-2 text-sm">
-          いまは選句期間ではありません（現在：
+        <Note tone="error">
+          いまは選句期間ではありません（現在
           {KUKAI_PHASE_LABEL[loaderData.phase as keyof typeof KUKAI_PHASE_LABEL] ??
             loaderData.phase}
           ）。
-        </p>
+        </Note>
       </div>
     );
   }
@@ -115,104 +117,114 @@ export default function Select({ loaderData, actionData }: Route.ComponentProps)
   const { kukaiId, name, theme, limits, used, sheet, mySelections, comments } = loaderData;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <p className="text-sm text-stone-500">
-        <Link to={`/kukai/${kukaiId}`} className="underline">
+    <div className="space-y-6">
+      <p className="text-xs text-sumi-soft">
+        <Link to={`/kukai/${kukaiId}`} className="hover:text-ai">
           ← {name}
         </Link>
       </p>
-      <h1 className="text-xl font-bold">選句</h1>
-      {theme ? <p className="text-stone-600">兼題：{theme}</p> : null}
+      <PageTitle>選句</PageTitle>
 
-      <p className="text-sm text-stone-600">
+      <p className="flex flex-wrap gap-x-5 gap-y-1 border-y border-rule py-2 u-data">
+        {theme ? (
+          <span>
+            兼題 <span className="text-sm text-sumi">{theme}</span>
+          </span>
+        ) : null}
         {KINDS.map((ki) => (
-          <span key={ki} className="mr-4">
-            {SELECTION_KIND_LABEL[ki]} {used[ki]}/{limits[ki]}
+          <span key={ki}>
+            {SELECTION_KIND_LABEL[ki]}{" "}
+            <span className={used[ki] > limits[ki] ? "text-shu" : "text-sumi"}>
+              {used[ki]}/{limits[ki]}
+            </span>
           </span>
         ))}
       </p>
 
-      {actionData && "ok" in actionData && actionData.ok ? (
-        <p className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">{actionData.ok}</p>
-      ) : null}
-      {actionData && "error" in actionData && actionData.error ? (
-        <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{actionData.error}</p>
-      ) : null}
+      <ActionNote data={actionData} />
 
       {sheet.length === 0 ? (
-        <p className="text-stone-500">選句できる句がありません。</p>
+        <p className="text-sm text-sumi-soft">選句できる句がありません。</p>
       ) : (
-        <ul className="space-y-4">
+        <TanzakuRow>
           {sheet.map((s) => {
             const chosen = mySelections[s.id];
             const myComments = comments[s.id] ?? [];
             return (
-              <li key={s.id} className="rounded border border-stone-200 bg-white p-4">
-                <p className="tategaki mx-auto my-2 max-h-48 text-lg">{s.content}</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {KINDS.map((ki) => (
-                    <Form method="post" key={ki}>
-                      <input type="hidden" name="intent" value="select" />
-                      <input type="hidden" name="submissionId" value={s.id} />
-                      <input type="hidden" name="kind" value={ki} />
-                      <button
-                        type="submit"
-                        className={`rounded border px-3 py-1 text-sm ${
-                          chosen === ki
-                            ? "border-stone-900 bg-stone-900 text-white"
-                            : "border-stone-300 hover:bg-stone-100"
-                        }`}
-                      >
-                        {SELECTION_KIND_LABEL[ki]}
-                      </button>
-                    </Form>
-                  ))}
-                  {chosen ? (
-                    <Form method="post">
-                      <input type="hidden" name="intent" value="clear" />
-                      <input type="hidden" name="submissionId" value={s.id} />
-                      <button type="submit" className="px-2 py-1 text-sm text-stone-500 underline">
-                        取消
-                      </button>
-                    </Form>
-                  ) : null}
-                </div>
-
-                <div className="mt-3 space-y-1">
-                  {myComments.map((c) => (
-                    <div key={c.id} className="flex items-start justify-between gap-2 text-sm">
-                      <p className="whitespace-pre-wrap text-stone-700">{c.body}</p>
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="deleteComment" />
-                        <input type="hidden" name="commentId" value={c.id} />
-                        <button type="submit" className="shrink-0 text-xs text-stone-400 underline">
-                          削除
+              <div key={s.id} className="flex shrink-0 gap-2">
+                <Tanzaku content={s.content} sealed={chosen === "special"} sealAnimate />
+                <div className="flex w-44 flex-col gap-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {KINDS.map((ki) => (
+                      <Form method="post" key={ki}>
+                        <input type="hidden" name="intent" value="select" />
+                        <input type="hidden" name="submissionId" value={s.id} />
+                        <input type="hidden" name="kind" value={ki} />
+                        <button
+                          type="submit"
+                          className={`rounded-[3px] border px-2.5 py-1 text-sm ${
+                            chosen === ki
+                              ? "border-ai bg-ai text-washi"
+                              : "border-rule text-sumi hover:bg-washi-edge"
+                          }`}
+                        >
+                          {SELECTION_KIND_LABEL[ki]}
                         </button>
                       </Form>
-                    </div>
-                  ))}
-                  <Form method="post" className="flex items-end gap-2">
-                    <input type="hidden" name="intent" value="comment" />
-                    <input type="hidden" name="submissionId" value={s.id} />
-                    <input
-                      name="body"
-                      required
-                      maxLength={1000}
-                      placeholder="コメント（選句中は自分だけに見えます）"
-                      className="flex-1 rounded border border-stone-300 px-2 py-1 text-sm"
-                    />
-                    <button
-                      type="submit"
-                      className="rounded border border-stone-300 px-2 py-1 text-sm hover:bg-stone-100"
-                    >
-                      投稿
-                    </button>
-                  </Form>
+                    ))}
+                    {chosen ? (
+                      <Form method="post">
+                        <input type="hidden" name="intent" value="clear" />
+                        <input type="hidden" name="submissionId" value={s.id} />
+                        <button
+                          type="submit"
+                          className="px-1.5 py-1 text-xs text-sumi-soft hover:text-shu"
+                        >
+                          取消
+                        </button>
+                      </Form>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-1">
+                    {myComments.map((c) => (
+                      <div key={c.id} className="flex items-start justify-between gap-1 text-xs">
+                        <p className="whitespace-pre-wrap text-sumi">{c.body}</p>
+                        <Form method="post">
+                          <input type="hidden" name="intent" value="deleteComment" />
+                          <input type="hidden" name="commentId" value={c.id} />
+                          <button
+                            type="submit"
+                            className="shrink-0 text-2xs text-sumi-soft hover:text-shu"
+                          >
+                            削除
+                          </button>
+                        </Form>
+                      </div>
+                    ))}
+                    <Form method="post" className="space-y-1">
+                      <input type="hidden" name="intent" value="comment" />
+                      <input type="hidden" name="submissionId" value={s.id} />
+                      <input
+                        name="body"
+                        required
+                        maxLength={1000}
+                        placeholder="自分だけのメモ"
+                        className="w-full rounded-[3px] border border-rule bg-transparent px-2 py-1 text-xs outline-none focus:border-ai"
+                      />
+                      <button
+                        type="submit"
+                        className="rounded-[3px] border border-rule px-2 py-0.5 text-2xs text-sumi-soft hover:bg-washi-edge"
+                      >
+                        書き留める
+                      </button>
+                    </Form>
+                  </div>
                 </div>
-              </li>
+              </div>
             );
           })}
-        </ul>
+        </TanzakuRow>
       )}
     </div>
   );

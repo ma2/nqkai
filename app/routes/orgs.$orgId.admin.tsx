@@ -1,4 +1,5 @@
 import { data, Form } from "react-router";
+import { ActionNote } from "~/components/ui";
 import { ORG_ROLE_LABEL } from "~/lib/constants";
 import { newId } from "~/lib/id";
 import { orgUpdateSchema } from "~/lib/schemas";
@@ -159,14 +160,9 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
 
   return (
     <div className="space-y-10">
-      <h1 className="text-2xl font-bold">結社管理：{org.name}</h1>
+      <h1 className="font-mincho text-2xl font-medium tracking-wide">結社管理：{org.name}</h1>
 
-      {actionData && "ok" in actionData && actionData.ok ? (
-        <p className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">{actionData.ok}</p>
-      ) : null}
-      {actionData && "error" in actionData && actionData.error ? (
-        <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{actionData.error}</p>
-      ) : null}
+      <ActionNote data={actionData} />
 
       {issuedCode ? (
         <div className="rounded border border-amber-300 bg-amber-50 p-4">
@@ -181,32 +177,32 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
 
       {/* 結社情報 */}
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">結社情報</h2>
+        <h2 className="font-mincho text-lg font-medium">結社情報</h2>
         <Form method="post" className="space-y-3">
           <input type="hidden" name="intent" value="updateOrg" />
           <label className="block">
-            <span className="text-sm text-stone-600">結社名</span>
+            <span className="text-sm text-sumi-soft">結社名</span>
             <input
               name="name"
               defaultValue={org.name}
               required
               maxLength={60}
-              className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-rule px-3 py-2"
             />
           </label>
           <label className="block">
-            <span className="text-sm text-stone-600">説明</span>
+            <span className="text-sm text-sumi-soft">説明</span>
             <textarea
               name="description"
               defaultValue={org.description}
               rows={3}
               maxLength={2000}
-              className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-rule px-3 py-2"
             />
           </label>
           <button
             type="submit"
-            className="rounded bg-stone-900 px-4 py-2 text-sm text-white hover:bg-stone-700"
+            className="rounded bg-ai px-4 py-2 text-sm text-washi hover:bg-ai-deep"
           >
             保存
           </button>
@@ -222,7 +218,7 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
               height={80}
             />
           ) : (
-            <div className="grid size-20 place-items-center rounded bg-stone-100 text-xs text-stone-400">
+            <div className="grid size-20 place-items-center rounded bg-washi-edge text-xs text-sumi-soft">
               画像なし
             </div>
           )}
@@ -236,11 +232,11 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
               type="file"
               name="image"
               accept="image/png,image/jpeg,image/webp"
-              className="text-sm text-stone-600 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-stone-100 file:px-3 file:py-1.5 file:text-stone-700 hover:file:bg-stone-200"
+              className="text-sm text-sumi-soft file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-washi-edge file:px-3 file:py-1.5 file:text-sumi hover:file:bg-washi-edge"
             />
             <button
               type="submit"
-              className="rounded border border-stone-300 px-3 py-2 text-sm hover:bg-stone-100"
+              className="rounded border border-rule px-3 py-2 text-sm hover:bg-washi-edge"
             >
               画像を更新
             </button>
@@ -248,7 +244,7 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
           {org.imageUrl ? (
             <Form method="post">
               <input type="hidden" name="intent" value="deleteOrgImage" />
-              <button type="submit" className="text-sm text-stone-500 underline">
+              <button type="submit" className="text-sm text-sumi-soft underline">
                 画像を削除
               </button>
             </Form>
@@ -258,18 +254,18 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
 
       {/* 参加申請 */}
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">参加申請（{joinRequests.length}）</h2>
+        <h2 className="font-mincho text-lg font-medium">参加申請（{joinRequests.length}）</h2>
         {joinRequests.length === 0 ? (
-          <p className="text-sm text-stone-500">保留中の申請はありません。</p>
+          <p className="text-sm text-sumi-soft">保留中の申請はありません。</p>
         ) : (
-          <ul className="divide-y divide-stone-200 rounded border border-stone-200">
+          <ul className="divide-y divide-rule rounded border border-rule">
             {joinRequests.map((r) => (
               <li key={r.id} className="flex items-start justify-between gap-4 px-3 py-3 text-sm">
                 <div>
                   <div className="font-medium">{r.haigo}</div>
-                  <div className="text-stone-500">{r.email}</div>
+                  <div className="text-sumi-soft">{r.email}</div>
                   {r.message ? (
-                    <p className="mt-1 whitespace-pre-wrap text-stone-600">{r.message}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sumi-soft">{r.message}</p>
                   ) : null}
                 </div>
                 <div className="flex shrink-0 gap-2">
@@ -278,7 +274,7 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
                     <input type="hidden" name="requestId" value={r.id} />
                     <button
                       type="submit"
-                      className="rounded bg-stone-900 px-3 py-1 text-white hover:bg-stone-700"
+                      className="rounded bg-ai px-3 py-1 text-washi hover:bg-ai-deep"
                     >
                       承認
                     </button>
@@ -288,7 +284,7 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
                     <input type="hidden" name="requestId" value={r.id} />
                     <button
                       type="submit"
-                      className="rounded border border-stone-300 px-3 py-1 text-stone-600 hover:bg-stone-100"
+                      className="rounded border border-rule px-3 py-1 text-sumi-soft hover:bg-washi-edge"
                     >
                       却下
                     </button>
@@ -302,8 +298,8 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
 
       {/* メンバー */}
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">メンバー（{members.length}）</h2>
-        <ul className="divide-y divide-stone-200 rounded border border-stone-200">
+        <h2 className="font-mincho text-lg font-medium">メンバー（{members.length}）</h2>
+        <ul className="divide-y divide-rule rounded border border-rule">
           {members.map((m) => (
             <li
               key={m.userId}
@@ -311,8 +307,8 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
             >
               <div>
                 <span className="font-medium">{m.haigo}</span>
-                <span className="ml-2 text-stone-500">{ORG_ROLE_LABEL[m.role]}</span>
-                <span className="ml-2 text-stone-400">加入 {fmtDate(m.joinedAt)}</span>
+                <span className="ml-2 text-sumi-soft">{ORG_ROLE_LABEL[m.role]}</span>
+                <span className="ml-2 text-sumi-soft">加入 {fmtDate(m.joinedAt)}</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {canAdmin ? (
@@ -322,7 +318,7 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
                     <select
                       name="role"
                       defaultValue={m.role}
-                      className="rounded border border-stone-300 px-2 py-1"
+                      className="rounded border border-rule px-2 py-1"
                     >
                       <option value="member">メンバー</option>
                       <option value="deputy_admin">副管理者</option>
@@ -330,7 +326,7 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
                     </select>
                     <button
                       type="submit"
-                      className="rounded border border-stone-300 px-2 py-1 text-stone-600 hover:bg-stone-100"
+                      className="rounded border border-rule px-2 py-1 text-sumi-soft hover:bg-washi-edge"
                     >
                       変更
                     </button>
@@ -341,7 +337,7 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
                   <input type="hidden" name="targetUserId" value={m.userId} />
                   <button
                     type="submit"
-                    className="rounded border border-stone-300 px-2 py-1 text-stone-600 hover:bg-stone-100"
+                    className="rounded border border-rule px-2 py-1 text-sumi-soft hover:bg-washi-edge"
                   >
                     復旧コード発行
                   </button>
@@ -357,7 +353,7 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
                   >
                     <input type="hidden" name="intent" value="removeMember" />
                     <input type="hidden" name="targetUserId" value={m.userId} />
-                    <button type="submit" className="text-stone-500 underline">
+                    <button type="submit" className="text-sumi-soft underline">
                       退会させる
                     </button>
                   </Form>
@@ -370,27 +366,29 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
 
       {/* パスキー復旧依頼 */}
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">パスキー復旧依頼（{recoveryReqs.length}）</h2>
+        <h2 className="font-mincho text-lg font-medium">
+          パスキー復旧依頼（{recoveryReqs.length}）
+        </h2>
         {recoveryReqs.length === 0 ? (
-          <p className="text-sm text-stone-500">
+          <p className="text-sm text-sumi-soft">
             依頼はありません。メンバー一覧の「復旧コード発行」からも発行できます（本人確認をアプリ外で行うこと）。
           </p>
         ) : (
-          <ul className="divide-y divide-stone-200 rounded border border-stone-200">
+          <ul className="divide-y divide-rule rounded border border-rule">
             {recoveryReqs.map((r) => (
               <li key={r.id} className="flex items-start justify-between gap-4 px-3 py-3 text-sm">
                 <div>
                   <div className="font-medium">{r.haigo}</div>
-                  <div className="text-stone-500">{r.email}</div>
-                  {r.note ? <p className="mt-1 text-stone-600">{r.note}</p> : null}
-                  <div className="text-stone-400">{fmtDate(r.createdAt)}</div>
+                  <div className="text-sumi-soft">{r.email}</div>
+                  {r.note ? <p className="mt-1 text-sumi-soft">{r.note}</p> : null}
+                  <div className="text-sumi-soft">{fmtDate(r.createdAt)}</div>
                 </div>
                 <Form method="post" className="shrink-0">
                   <input type="hidden" name="intent" value="issueRecovery" />
                   <input type="hidden" name="targetUserId" value={r.userId} />
                   <button
                     type="submit"
-                    className="rounded bg-stone-900 px-3 py-1 text-white hover:bg-stone-700"
+                    className="rounded bg-ai px-3 py-1 text-washi hover:bg-ai-deep"
                   >
                     コード発行
                   </button>
@@ -404,7 +402,7 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
       {/* 閉鎖・再開 */}
       {canAdmin ? (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">結社の状態</h2>
+          <h2 className="font-mincho text-lg font-medium">結社の状態</h2>
           {org.status === "open" ? (
             <Form
               method="post"
@@ -422,7 +420,7 @@ export default function OrgAdmin({ loaderData, actionData }: Route.ComponentProp
           ) : (
             <Form method="post">
               <input type="hidden" name="intent" value="reopen" />
-              <button type="submit" className="text-sm text-stone-700 underline">
+              <button type="submit" className="text-sm text-sumi underline">
                 結社を再開する
               </button>
             </Form>

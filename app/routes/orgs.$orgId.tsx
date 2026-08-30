@@ -1,4 +1,5 @@
 import { data, Form, Link, redirect } from "react-router";
+import { ActionNote } from "~/components/ui";
 import { KUKAI_PHASE_LABEL, ORG_ROLE_LABEL } from "~/lib/constants";
 import { joinRequestSchema } from "~/lib/schemas";
 import { getAuth, requireAuth } from "~/server/auth.server";
@@ -95,41 +96,39 @@ export default function OrgDetail({ loaderData, actionData }: Route.ComponentPro
           />
         ) : null}
         <div>
-          <h1 className="text-2xl font-bold">
+          <h1 className="font-mincho text-2xl font-medium tracking-wide">
             {org.name}
             {org.status === "closed" ? (
-              <span className="ml-2 rounded bg-stone-200 px-2 py-0.5 align-middle text-xs text-stone-600">
+              <span className="ml-2 rounded bg-washi-edge px-2 py-0.5 align-middle text-xs text-sumi-soft">
                 閉鎖
               </span>
             ) : null}
           </h1>
-          <p className="mt-1 text-sm text-stone-500">メンバー {memberCount} 名</p>
+          <p className="mt-1 text-sm text-sumi-soft">メンバー {memberCount} 名</p>
         </div>
       </div>
 
-      {org.description ? (
-        <p className="whitespace-pre-wrap text-stone-700">{org.description}</p>
-      ) : null}
+      {org.description ? <p className="whitespace-pre-wrap text-sumi">{org.description}</p> : null}
 
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">句会</h2>
+          <h2 className="font-mincho text-lg font-medium">句会</h2>
           {role ? (
-            <Link to={`/orgs/${org.id}/kukai/new`} className="text-sm text-stone-600 underline">
+            <Link to={`/orgs/${org.id}/kukai/new`} className="text-sm text-sumi-soft underline">
               句会を作成
             </Link>
           ) : null}
         </div>
         {kukaiList.length === 0 ? (
-          <p className="text-sm text-stone-500">まだ句会がありません。</p>
+          <p className="text-sm text-sumi-soft">まだ句会がありません。</p>
         ) : (
-          <ul className="divide-y divide-stone-200 rounded border border-stone-200 bg-white">
+          <ul className="divide-y divide-rule rounded border border-rule bg-transparent">
             {kukaiList.map((kk) => (
               <li key={kk.id} className="flex items-center justify-between px-4 py-2 text-sm">
                 <Link to={`/kukai/${kk.id}`} className="font-medium hover:underline">
                   {kk.name}
                 </Link>
-                <span className="text-stone-500">
+                <span className="text-sumi-soft">
                   {KUKAI_PHASE_LABEL[kk.phase as keyof typeof KUKAI_PHASE_LABEL] ?? kk.phase}
                 </span>
               </li>
@@ -138,14 +137,9 @@ export default function OrgDetail({ loaderData, actionData }: Route.ComponentPro
         )}
       </section>
 
-      {actionData && "ok" in actionData && actionData.ok ? (
-        <p className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">{actionData.ok}</p>
-      ) : null}
-      {actionData && "error" in actionData && actionData.error ? (
-        <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{actionData.error}</p>
-      ) : null}
+      <ActionNote data={actionData} />
 
-      <div className="rounded border border-stone-200 bg-white p-4">
+      <div className="rounded border border-rule bg-transparent p-4">
         {role ? (
           <div className="space-y-3">
             <p className="text-sm">
@@ -155,7 +149,7 @@ export default function OrgDetail({ loaderData, actionData }: Route.ComponentPro
               {canManage ? (
                 <Link
                   to={`/orgs/${org.id}/admin`}
-                  className="rounded bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700"
+                  className="rounded bg-ai px-3 py-1.5 text-sm text-washi hover:bg-ai-deep"
                 >
                   結社管理
                 </Link>
@@ -164,7 +158,7 @@ export default function OrgDetail({ loaderData, actionData }: Route.ComponentPro
                 <input type="hidden" name="intent" value="leave" />
                 <button
                   type="submit"
-                  className="rounded border border-stone-300 px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100"
+                  className="rounded border border-rule px-3 py-1.5 text-sm text-sumi-soft hover:bg-washi-edge"
                 >
                   退会
                 </button>
@@ -172,7 +166,7 @@ export default function OrgDetail({ loaderData, actionData }: Route.ComponentPro
             </div>
           </div>
         ) : !isAuthed ? (
-          <p className="text-sm text-stone-500">
+          <p className="text-sm text-sumi-soft">
             参加するには{" "}
             <Link to="/login" className="underline">
               ログイン
@@ -181,32 +175,29 @@ export default function OrgDetail({ loaderData, actionData }: Route.ComponentPro
           </p>
         ) : pendingRequest ? (
           <div className="flex items-center gap-3">
-            <span className="text-sm text-stone-600">参加申請中（管理者の承認待ち）</span>
+            <span className="text-sm text-sumi-soft">参加申請中（管理者の承認待ち）</span>
             <Form method="post">
               <input type="hidden" name="intent" value="withdrawRequest" />
-              <button type="submit" className="text-sm text-stone-500 underline">
+              <button type="submit" className="text-sm text-sumi-soft underline">
                 取り下げ
               </button>
             </Form>
           </div>
         ) : org.status === "closed" ? (
-          <p className="text-sm text-stone-500">この結社は閉鎖されています。</p>
+          <p className="text-sm text-sumi-soft">この結社は閉鎖されています。</p>
         ) : (
           <Form method="post" className="space-y-3">
             <input type="hidden" name="intent" value="joinRequest" />
             <label className="block">
-              <span className="text-sm text-stone-600">申請メッセージ（任意）</span>
+              <span className="text-sm text-sumi-soft">申請メッセージ（任意）</span>
               <textarea
                 name="message"
                 rows={3}
                 maxLength={500}
-                className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+                className="mt-1 w-full rounded border border-rule px-3 py-2"
               />
             </label>
-            <button
-              type="submit"
-              className="rounded bg-stone-900 px-4 py-2 text-white hover:bg-stone-700"
-            >
+            <button type="submit" className="rounded bg-ai px-4 py-2 text-washi hover:bg-ai-deep">
               参加を申請
             </button>
           </Form>

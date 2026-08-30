@@ -68,11 +68,11 @@ export default function Notifications({ loaderData }: Route.ComponentProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">通知</h1>
+        <h1 className="font-mincho text-2xl font-medium tracking-wide">通知</h1>
         {hasUnread ? (
           <Form method="post">
             <input type="hidden" name="intent" value="readAll" />
-            <button type="submit" className="text-sm text-stone-600 underline">
+            <button type="submit" className="text-sm text-sumi-soft underline">
               すべて既読にする
             </button>
           </Form>
@@ -80,19 +80,19 @@ export default function Notifications({ loaderData }: Route.ComponentProps) {
       </div>
 
       {items.length === 0 ? (
-        <p className="text-stone-500">通知はありません。</p>
+        <p className="text-sumi-soft">通知はありません。</p>
       ) : (
-        <ul className="divide-y divide-stone-200 rounded border border-stone-200 bg-white">
+        <ul className="divide-y divide-rule rounded border border-rule bg-transparent">
           {items.map((n) => {
             const href = linkFor(n.payload);
             return (
               <li
                 key={n.id}
-                className={`flex items-center justify-between gap-3 px-4 py-3 text-sm ${n.readAt ? "text-stone-500" : ""}`}
+                className={`flex items-center justify-between gap-3 px-4 py-3 text-sm ${n.readAt ? "text-sumi-soft" : ""}`}
               >
                 <div>
                   {!n.readAt ? (
-                    <span className="mr-2 inline-block size-2 rounded-full bg-stone-900 align-middle" />
+                    <span className="mr-2 inline-block size-2 rounded-full bg-ai align-middle" />
                   ) : null}
                   {href ? (
                     <Link to={href} className="hover:underline">
@@ -101,13 +101,13 @@ export default function Notifications({ loaderData }: Route.ComponentProps) {
                   ) : (
                     n.message
                   )}
-                  <span className="ml-2 text-stone-400">{fmt(n.createdAt)}</span>
+                  <span className="ml-2 text-sumi-soft">{fmt(n.createdAt)}</span>
                 </div>
                 {!n.readAt ? (
                   <Form method="post">
                     <input type="hidden" name="intent" value="read" />
                     <input type="hidden" name="id" value={n.id} />
-                    <button type="submit" className="shrink-0 text-stone-400 underline">
+                    <button type="submit" className="shrink-0 text-sumi-soft underline">
                       既読
                     </button>
                   </Form>

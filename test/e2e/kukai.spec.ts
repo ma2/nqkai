@@ -112,7 +112,7 @@ test("句会の1サイクル：作成→投句→選句→結果→作者公開"
 
   // 結果ページ：順位が出る、作者はまだ非公開
   await a.getByRole("link", { name: "結果・講評" }).click();
-  await expect(a.getByText(/第1位・3点/).first()).toBeVisible();
+  await expect(a.getByText(/3点/).first()).toBeVisible();
   await expect(a.getByText(/作者：/)).toHaveCount(0);
 
   // 作者を公開

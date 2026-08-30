@@ -78,18 +78,18 @@ export default function Recover({ actionData }: Route.ComponentProps) {
       <Link to="/" className="mx-auto block w-fit py-2">
         <Logo size={36} />
       </Link>
-      <h1 className="text-xl font-bold">パスキーの復旧</h1>
+      <h1 className="font-mincho text-xl font-medium tracking-wide">パスキーの復旧</h1>
 
-      <div className="flex gap-4 border-b border-stone-200 text-sm">
+      <div className="flex gap-4 border-b border-rule text-sm">
         <Link
           to="/recover"
-          className={`pb-2 ${mode === "request" ? "border-b-2 border-stone-900 font-medium" : "text-stone-500"}`}
+          className={`pb-2 ${mode === "request" ? "border-b-2 border-stone-900 font-medium" : "text-sumi-soft"}`}
         >
           管理者に依頼する
         </Link>
         <Link
           to="/recover?mode=code"
-          className={`pb-2 ${mode === "code" ? "border-b-2 border-stone-900 font-medium" : "text-stone-500"}`}
+          className={`pb-2 ${mode === "code" ? "border-b-2 border-stone-900 font-medium" : "text-sumi-soft"}`}
         >
           復旧コードで再登録
         </Link>
@@ -97,7 +97,7 @@ export default function Recover({ actionData }: Route.ComponentProps) {
 
       {mode === "request" ? (
         <div className="space-y-4">
-          <p className="text-sm text-stone-600">
+          <p className="text-sm text-sumi-soft">
             すべてのパスキーを失った場合、所属する結社の管理者が「復旧コード」を発行できます。
             下記から依頼すると管理者に通知されます。管理者は本人確認のうえ、アプリ外（電話・LINE・対面など）で
             コードをお伝えします。
@@ -107,30 +107,27 @@ export default function Recover({ actionData }: Route.ComponentProps) {
           ) : (
             <Form method="post" className="space-y-3">
               <label className="block">
-                <span className="text-sm text-stone-600">登録メールアドレス</span>
+                <span className="text-sm text-sumi-soft">登録メールアドレス</span>
                 <input
                   name="email"
                   type="email"
                   required
-                  className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded border border-rule px-3 py-2"
                 />
               </label>
               <label className="block">
-                <span className="text-sm text-stone-600">管理者へのメモ（任意）</span>
+                <span className="text-sm text-sumi-soft">管理者へのメモ（任意）</span>
                 <textarea
                   name="note"
                   rows={2}
                   maxLength={500}
-                  className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded border border-rule px-3 py-2"
                 />
               </label>
               {actionData && "error" in actionData && actionData.error ? (
                 <p className="text-sm text-red-600">{actionData.error}</p>
               ) : null}
-              <button
-                type="submit"
-                className="rounded bg-stone-900 px-4 py-2 text-white hover:bg-stone-700"
-              >
+              <button type="submit" className="rounded bg-ai px-4 py-2 text-washi hover:bg-ai-deep">
                 復旧を依頼する
               </button>
             </Form>
@@ -138,40 +135,40 @@ export default function Recover({ actionData }: Route.ComponentProps) {
         </div>
       ) : (
         <form className="space-y-3" onSubmit={onRedeem}>
-          <p className="text-sm text-stone-600">
+          <p className="text-sm text-sumi-soft">
             管理者から受け取ったコードを入力し、この端末に新しいパスキーを登録します。
           </p>
           <label className="block">
-            <span className="text-sm text-stone-600">登録メールアドレス</span>
+            <span className="text-sm text-sumi-soft">登録メールアドレス</span>
             <input
               ref={emailRef}
               type="email"
               autoComplete="username webauthn"
               required
-              className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-rule px-3 py-2"
             />
           </label>
           <label className="block">
-            <span className="text-sm text-stone-600">復旧コード</span>
+            <span className="text-sm text-sumi-soft">復旧コード</span>
             <input
               ref={codeRef}
               required
               placeholder="ABCD-EFGH-JKMN"
-              className="mt-1 w-full rounded border border-stone-300 px-3 py-2 font-mono tracking-widest"
+              className="mt-1 w-full rounded border border-rule px-3 py-2 font-mono tracking-widest"
             />
           </label>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <button
             type="submit"
             disabled={pending}
-            className="w-full rounded bg-stone-900 px-4 py-2 text-white hover:bg-stone-700 disabled:opacity-50"
+            className="w-full rounded bg-ai px-4 py-2 text-washi hover:bg-ai-deep disabled:opacity-50"
           >
             {pending ? "再登録中…" : "パスキーを再登録"}
           </button>
         </form>
       )}
 
-      <p className="text-sm text-stone-500">
+      <p className="text-sm text-sumi-soft">
         <Link to="/login" className="underline">
           ログインに戻る
         </Link>

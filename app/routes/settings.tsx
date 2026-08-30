@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { useRef, useState } from "react";
 import { data, Form, Link, redirect, useRevalidator } from "react-router";
+import { ActionNote } from "~/components/ui";
 import { ORG_ROLE_LABEL } from "~/lib/constants";
 import { newId } from "~/lib/id";
 import { profileUpdateSchema } from "~/lib/schemas";
@@ -201,17 +202,12 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
 
   return (
     <div className="space-y-10">
-      <h1 className="text-2xl font-bold">設定</h1>
+      <h1 className="font-mincho text-2xl font-medium tracking-wide">設定</h1>
 
-      {actionData && "ok" in actionData && actionData.ok ? (
-        <p className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">{actionData.ok}</p>
-      ) : null}
-      {actionData && "error" in actionData && actionData.error ? (
-        <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{actionData.error}</p>
-      ) : null}
+      <ActionNote data={actionData} />
 
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">プロフィール</h2>
+        <h2 className="font-mincho text-lg font-medium">プロフィール</h2>
         <div className="flex items-center gap-4">
           {user.avatarUrl ? (
             <img
@@ -222,23 +218,21 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
               height={64}
             />
           ) : (
-            <div className="grid size-16 place-items-center rounded-full bg-stone-200 text-stone-500">
+            <div className="grid size-16 place-items-center rounded-full bg-washi-edge text-sumi-soft">
               {user.haigo.slice(0, 1)}
             </div>
           )}
           <div className="space-y-1">
-            <div className="text-sm text-stone-500">{user.email}</div>
+            <div className="text-sm text-sumi-soft">{user.email}</div>
             <div className="flex flex-wrap gap-1.5">
               {user.isSystemAdmin ? (
-                <span className="rounded bg-stone-900 px-2 py-0.5 text-xs text-white">
-                  システム管理者
-                </span>
+                <span className="rounded bg-ai px-2 py-0.5 text-xs text-washi">システム管理者</span>
               ) : null}
               {managedOrgs.map((o) => (
                 <Link
                   key={o.id}
                   to={`/orgs/${o.id}/admin`}
-                  className="rounded bg-stone-100 px-2 py-0.5 text-xs text-stone-700 hover:bg-stone-200"
+                  className="rounded bg-washi-edge px-2 py-0.5 text-xs text-sumi hover:bg-washi-edge"
                 >
                   {o.name}・{ORG_ROLE_LABEL[o.role]}
                 </Link>
@@ -250,19 +244,16 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
         <Form method="post" className="flex items-end gap-3">
           <input type="hidden" name="intent" value="updateProfile" />
           <label className="block flex-1">
-            <span className="text-sm text-stone-600">俳号</span>
+            <span className="text-sm text-sumi-soft">俳号</span>
             <input
               name="haigo"
               defaultValue={user.haigo}
               maxLength={30}
               required
-              className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-rule px-3 py-2"
             />
           </label>
-          <button
-            type="submit"
-            className="rounded bg-stone-900 px-4 py-2 text-white hover:bg-stone-700"
-          >
+          <button type="submit" className="rounded bg-ai px-4 py-2 text-washi hover:bg-ai-deep">
             保存
           </button>
         </Form>
@@ -277,18 +268,18 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
             type="file"
             name="file"
             accept="image/png,image/jpeg,image/webp"
-            className="text-sm text-stone-600 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-stone-100 file:px-3 file:py-1.5 file:text-stone-700 hover:file:bg-stone-200"
+            className="text-sm text-sumi-soft file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-washi-edge file:px-3 file:py-1.5 file:text-sumi hover:file:bg-washi-edge"
           />
           <button
             type="submit"
-            className="rounded border border-stone-300 px-3 py-2 text-sm hover:bg-stone-100"
+            className="rounded border border-rule px-3 py-2 text-sm hover:bg-washi-edge"
           >
             画像を更新
           </button>
           {user.avatarUrl ? (
             <Form method="post">
               <input type="hidden" name="intent" value="deleteAvatar" />
-              <button type="submit" className="text-sm text-stone-500 underline">
+              <button type="submit" className="text-sm text-sumi-soft underline">
                 画像を削除
               </button>
             </Form>
@@ -297,13 +288,13 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">パスキー</h2>
-        <ul className="divide-y divide-stone-200 rounded border border-stone-200">
+        <h2 className="font-mincho text-lg font-medium">パスキー</h2>
+        <ul className="divide-y divide-rule rounded border border-rule">
           {credentials.map((c) => (
             <li key={c.id} className="flex items-center justify-between px-3 py-2 text-sm">
               <div>
                 <div className="font-medium">{credentialLabel(c)}</div>
-                <div className="text-stone-500">
+                <div className="text-sumi-soft">
                   登録 {fmtDate(c.createdAt)} ／ 最終利用 {fmtDate(c.lastUsedAt)}
                 </div>
               </div>
@@ -313,7 +304,7 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
                 <button
                   type="submit"
                   disabled={credentials.length <= 1}
-                  className="text-stone-500 underline disabled:opacity-40"
+                  className="text-sumi-soft underline disabled:opacity-40"
                 >
                   削除
                 </button>
@@ -324,18 +315,18 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
 
         <div className="flex items-end gap-3">
           <label className="block flex-1">
-            <span className="text-sm text-stone-600">デバイス名（任意）</span>
+            <span className="text-sm text-sumi-soft">デバイス名（任意）</span>
             <input
               ref={deviceNameRef}
               maxLength={50}
-              className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-rule px-3 py-2"
             />
           </label>
           <button
             type="button"
             onClick={() => void onAddPasskey()}
             disabled={adding}
-            className="rounded border border-stone-300 px-4 py-2 text-sm hover:bg-stone-100 disabled:opacity-50"
+            className="rounded border border-rule px-4 py-2 text-sm hover:bg-washi-edge disabled:opacity-50"
           >
             {adding ? "追加中…" : "このデバイスのパスキーを追加"}
           </button>
@@ -344,10 +335,10 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">アカウント</h2>
+        <h2 className="font-mincho text-lg font-medium">アカウント</h2>
         <Form method="post">
           <input type="hidden" name="intent" value="logoutAll" />
-          <button type="submit" className="text-sm text-stone-700 underline">
+          <button type="submit" className="text-sm text-sumi underline">
             すべての端末からログアウト
           </button>
         </Form>

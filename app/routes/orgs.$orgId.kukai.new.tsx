@@ -39,12 +39,12 @@ export async function action({ request, params, context }: Route.ActionArgs) {
 function Num({ name, label, def }: { name: string; label: string; def: number }) {
   return (
     <label className="block">
-      <span className="text-sm text-stone-600">{label}</span>
+      <span className="text-sm text-sumi-soft">{label}</span>
       <input
         type="number"
         name={name}
         defaultValue={def}
-        className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+        className="mt-1 w-full rounded border border-rule px-3 py-2"
       />
     </label>
   );
@@ -53,11 +53,11 @@ function Num({ name, label, def }: { name: string; label: string; def: number })
 function When({ name, label }: { name: string; label: string }) {
   return (
     <label className="block">
-      <span className="text-sm text-stone-600">{label}</span>
+      <span className="text-sm text-sumi-soft">{label}</span>
       <input
         type="datetime-local"
         name={name}
-        className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+        className="mt-1 w-full rounded border border-rule px-3 py-2"
       />
     </label>
   );
@@ -66,42 +66,44 @@ function When({ name, label }: { name: string; label: string }) {
 export default function KukaiNew({ loaderData, actionData }: Route.ComponentProps) {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-xl font-bold">句会を作成 — {loaderData.orgName}</h1>
+      <h1 className="font-mincho text-xl font-medium tracking-wide">
+        句会を作成 — {loaderData.orgName}
+      </h1>
 
       <Form method="post" className="space-y-6">
         <section className="space-y-3">
           <label className="block">
-            <span className="text-sm text-stone-600">句会名</span>
+            <span className="text-sm text-sumi-soft">句会名</span>
             <input
               name="name"
               required
               maxLength={80}
-              className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-rule px-3 py-2"
             />
           </label>
           <label className="block">
-            <span className="text-sm text-stone-600">兼題（お題）</span>
+            <span className="text-sm text-sumi-soft">兼題（お題）</span>
             <input
               name="theme"
               maxLength={100}
-              className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-rule px-3 py-2"
             />
           </label>
           <label className="block">
-            <span className="text-sm text-stone-600">説明</span>
+            <span className="text-sm text-sumi-soft">説明</span>
             <textarea
               name="description"
               rows={3}
               maxLength={2000}
-              className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-rule px-3 py-2"
             />
           </label>
           <label className="block">
-            <span className="text-sm text-stone-600">公開設定</span>
+            <span className="text-sm text-sumi-soft">公開設定</span>
             <select
               name="visibility"
               defaultValue="private"
-              className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+              className="mt-1 w-full rounded border border-rule px-3 py-2"
             >
               <option value="private">プライベート（結社メンバーのみ）</option>
               <option value="public">パブリック（終了後は誰でも閲覧可）</option>
@@ -119,8 +121,8 @@ export default function KukaiNew({ loaderData, actionData }: Route.ComponentProp
           <Num name="reversePoints" label="逆選の点" def={-1} />
         </section>
 
-        <details className="rounded border border-stone-200 p-3">
-          <summary className="cursor-pointer text-sm text-stone-600">
+        <details className="rounded border border-rule p-3">
+          <summary className="cursor-pointer text-sm text-sumi-soft">
             予定時刻（任意・目安。自動遷移はしません）
           </summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -135,10 +137,7 @@ export default function KukaiNew({ loaderData, actionData }: Route.ComponentProp
         </details>
 
         {actionData?.error ? <p className="text-sm text-red-600">{actionData.error}</p> : null}
-        <button
-          type="submit"
-          className="rounded bg-stone-900 px-4 py-2 text-white hover:bg-stone-700"
-        >
+        <button type="submit" className="rounded bg-ai px-4 py-2 text-washi hover:bg-ai-deep">
           作成（準備中フェーズ）
         </button>
       </Form>

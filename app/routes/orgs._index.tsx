@@ -18,11 +18,11 @@ export default function OrgsIndex({ loaderData }: Route.ComponentProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">結社</h1>
+        <h1 className="font-mincho text-2xl font-medium tracking-wide">結社</h1>
         {isMember ? (
           <Link
             to="/orgs/new"
-            className="rounded bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700"
+            className="rounded bg-ai px-3 py-1.5 text-sm text-washi hover:bg-ai-deep"
           >
             結社を作成
           </Link>
@@ -30,9 +30,9 @@ export default function OrgsIndex({ loaderData }: Route.ComponentProps) {
       </div>
 
       {organizations.length === 0 ? (
-        <p className="text-stone-500">まだ結社がありません。</p>
+        <p className="text-sumi-soft">まだ結社がありません。</p>
       ) : (
-        <ul className="divide-y divide-stone-200 rounded border border-stone-200 bg-white">
+        <ul className="divide-y divide-rule rounded border border-rule bg-transparent">
           {organizations.map((o) => (
             <li key={o.id} className="flex gap-3 px-4 py-3">
               {o.imageKey ? (
@@ -49,11 +49,11 @@ export default function OrgsIndex({ loaderData }: Route.ComponentProps) {
                   {o.name}
                 </Link>
                 {o.status === "closed" ? (
-                  <span className="ml-2 rounded bg-stone-200 px-1.5 py-0.5 text-xs text-stone-600">
+                  <span className="ml-2 rounded bg-washi-edge px-1.5 py-0.5 text-xs text-sumi-soft">
                     閉鎖
                   </span>
                 ) : null}
-                <div className="text-sm text-stone-500">
+                <div className="text-sm text-sumi-soft">
                   メンバー {o.memberCount} 名
                   {o.description ? ` ／ ${o.description.slice(0, 60)}` : ""}
                 </div>

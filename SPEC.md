@@ -907,9 +907,13 @@ Submission ||--o{ Comment
 
 - グローバルなクライアント状態管理ライブラリは導入しない。UI ローカル状態は `useState`、URL に載せられるもの（タブ・フィルタ）は検索パラメータに置く。
 
-### 11.4 ロゴ
+### 11.4 ビジュアル・アイデンティティ
 
-- `app/components/Logo.tsx`（インライン SVG の円相マーク + ワードマーク）。ヘッダと認証系ページ（ログイン / 新規登録 / 復旧）で表示。favicon は `public/favicon.svg`。
+- コンセプト：句会を「その場」に。句は**短冊**（縦組みの細長い紙）に載り、右→左の読み順で吊るされ、良い句に**朱の落款**を押す。
+- トークン（`app/app.css` の `@theme`）：`--color-sumi`（墨）/`--color-sumi-soft`/`--color-washi`（和紙・ページ）/`--color-washi-edge`/`--color-rule`（界線）/`--color-ai`（表装の藍・アクセント）/`--color-shu`（落款の朱）。
+- 書体：見出し＝明朝（`--font-mincho`、システムフォント）、本文・UI＝角ゴシック（`--font-gothic`）、数値＝ゴシック + `tabular-nums`（`.u-data`）。
+- 共有 UI（`app/components/`）：`Logo` / `LogoMark` / `Seal`（円相＝落款＝アプリマークを同形）、`ui.tsx`（`Panel`（影なし・界線一本）/`SectionLabel`（朱角＋和文）/`PageTitle`/`Note`/`ActionNote`）、`Tanzaku` / `TanzakuRow`（縦組みの句を右→左に吊るす）、`PhaseTrack`（句会フェーズの進行）。
+- favicon は `public/favicon.svg`。動きは特選押印のワンショットのみ（`prefers-reduced-motion` 尊重）。
 
 ### 11.5 縦書き表示
 
