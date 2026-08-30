@@ -25,7 +25,7 @@ async function register(page: Page, email: string, haigo: string) {
 
 async function advance(page: Page, times: number) {
   for (let i = 0; i < times; i++) {
-    await page.getByRole("button", { name: "次のフェーズ →" }).click();
+    await page.getByRole("button", { name: /に進める →/ }).click();
     await expect(page.getByText("フェーズを更新しました")).toBeVisible();
   }
 }
