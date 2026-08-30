@@ -15,8 +15,8 @@ export function Tanzaku({
   sealAnimate?: boolean;
 }) {
   return (
-    <div className="relative w-40 shrink-0 self-start border-x border-rule bg-washi-edge/50 px-8 py-6">
-      <p className="tategaki mx-auto min-h-[8rem] text-[1.45rem] text-sumi">{content}</p>
+    <div className="relative flex w-40 shrink-0 self-start justify-center border-x border-rule bg-washi-edge/50 px-8 py-6">
+      <p className="tategaki min-h-[8rem] text-[1.45rem] text-sumi">{content}</p>
       {sealed ? (
         <span className="absolute bottom-1.5 left-1.5">
           <Seal size={20} animate={sealAnimate} />
