@@ -14,6 +14,8 @@
   // アカウントの workers.dev サブドメインは `mckoy`（共有・変更不可）。Worker 名で環境を区別する。
   //   staging → https://nqkai-staging.mckoy.workers.dev
   //   prod    → https://nqkai-prod.mckoy.workers.dev
+  // 以下の database_id / KV id / WEBAUTHN_* はリファレンス運用の値（秘密情報ではない）。
+  // 別アカウントで動かす場合は SETUP.md「6. フォークして自分で運用する」を参照。
   "env": {
     "staging": {
       "name": "nqkai-staging",

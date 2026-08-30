@@ -111,10 +111,12 @@ SETUP.md            Cloudflare 実リソース作成・GitHub Secrets の手順
 2. **セキュリティ**:
    - 公開 URL は連番を使わず UUID / 推測困難トークン（`kukai.id`, `organizations.id`, `users.public_id`, `guest_codes.code`）
    - パスキー認証のみ（パスワードなし）
+   - **アカウント復旧は管理者仲介（案D、SPEC.md「5.5」）**: 全パスキー喪失時、所属結社の管理者かシステム管理者が一回限り・24h・単回の再登録コードを発行（`account_recovery_codes`、ハッシュ保存）。メール不使用。発行/使用は監査＋同結社の他管理者へ通知。登録時に複数パスキー登録を促す（案E）
    - セッション Cookie は `__Host-` + `Secure` + `HttpOnly` + `SameSite=Lax`
    - 状態変更（action・POST）は `Origin` / `Sec-Fetch-Site` を検証（CSRF 対策）
-   - 認証・登録・ゲスト参加はレート制限（KV）
+   - 認証・登録・ゲスト参加・復旧はレート制限（KV）
    - ゲストアクセスはコードで発行、有効期限3ヶ月
+   - システム管理者は常に 2 名以上・各自 2 パスキー以上（相互復旧のため）
 3. **フェーズ**: 句会は定義済みフェーズの状態機械。**遷移は主催者の手動操作のみ**（`advance` / `rewind` / `extend`）。`scheduled_*_at` は UI 上の「目安」で、到達しても自動遷移しない。全遷移を `kukai_phase_events` に記録
 4. **画面反映**: 句会画面は `useFetcher` で `GET /api/kukai/:kukaiId/state`（リソースルート）を約15秒間隔で取得し、`phase` や主要カウンタが変化したら `useRevalidator().revalidate()` で loader を再実行（タブ非アクティブ時は停止）
 5. **縦書き表示**: 句カード・選句シート・個人俳句一覧は CSS（`writing-mode: vertical-rl`）で縦書き。管理系 UI は横書き

@@ -10,16 +10,17 @@
 | staging | `nqkai-staging` | `https://nqkai-staging.mckoy.workers.dev` | `dev` |
 | production | `nqkai-prod` | `https://nqkai-prod.mckoy.workers.dev` | `main` |
 
-## 状態
+## 状態（リファレンス運用 = ma2 のアカウント）
 
 - ✅ Cloudflare リソース作成済み（`wrangler.jsonc` に反映）
   - D1: `nqkai-staging` (`1f1d1edc-1e83-40e9-97bb-55bbbbee4be3`) / `nqkai-prod` (`6084cfde-648d-45d6-be8c-26b83bd4b95c`)
   - KV: `nqkai-staging` (`3a75afdfe34c43d6a6d27b2dc5ce2c8d`) / `nqkai-prod` (`a9c1955eb227473a8faa0695301d2a0d`)
   - R2: `nqkai-staging` / `nqkai-prod`
-- ✅ staging へ初回デプロイ済み → https://nqkai-staging.mckoy.workers.dev（SSR / KV / CSRF は確認済み。D1 はマイグレーション未適用）
-- ⏳ リモート D1 マイグレーション（下記 1）
-- ⏳ GitHub Secrets（下記 2）／ `main` ブランチ保護（下記 3）
-- ⏳ production への初回デプロイ（下記 4）
+- ✅ staging / production ともデプロイ済み・リモート D1 マイグレーション済み・GitHub Secrets 登録済み
+- ✅ CI/CD 稼働（`dev`→staging / `main`→production を実地確認）
+- ⏳ `main` ブランチ保護ルールセットの Enforcement を `Active` にする（構成済み・現在 disabled）
+
+> `wrangler.jsonc` にある `database_id` / KV `id` / `WEBAUTHN_*` はこのリファレンス運用の値。**秘密情報ではない**（`CLOUDFLARE_API_TOKEN` が無ければ何もできない）。別アカウントで運用する場合は「6. フォークして自分で運用する」を参照。
 
 ## 1. リモート D1 へマイグレーション適用
 
@@ -43,11 +44,12 @@ API トークンは Cloudflare ダッシュボード → My Profile → API Toke
 
 ## 3. ブランチ保護（`main`）
 
-Settings → Branches → Add rule（`main`）:
+Settings → Rules（または Branches）→ ルールセット `main`:
 
 - Require a pull request before merging
-- Require status checks to pass（`ci` を必須に）
-- Do not allow direct pushes
+- Require status checks to pass → **`ci`**（1 度実行されるまで一覧に出ないので手入力でも可）
+- Block force pushes / 直接 push を禁止
+- **Enforcement status を `Active`**（`Disabled` のままだと効かない）
 
 ## 4. 初回デプロイ
 
@@ -78,3 +80,25 @@ pnpm admin:grant you@example.com                  # ローカル
 pnpm admin:grant you@example.com --env staging    # staging
 pnpm admin:grant you@example.com --env production # production
 ```
+
+## 6. フォークして自分で運用する
+
+`wrangler.jsonc` の `database_id` / KV `id` / bucket 名 / `WEBAUTHN_*` は ma2 のアカウントのリファレンス運用向け。別の Cloudflare アカウントで動かすには自分用に作り直す。
+
+1. `wrangler login`（自分のアカウント）
+2. リソースを作成し、出力された ID を控える：
+   ```bash
+   pnpm exec wrangler d1 create <staging名> && pnpm exec wrangler d1 create <prod名>
+   pnpm exec wrangler kv namespace create <staging名> && pnpm exec wrangler kv namespace create <prod名>
+   pnpm exec wrangler r2 bucket create <staging名> && pnpm exec wrangler r2 bucket create <prod名>
+   # R2 が未有効ならダッシュボードで「Enable R2」
+   ```
+3. `wrangler.jsonc` を編集：
+   - `env.staging` / `env.production` の `d1_databases[].database_id`、`d1_databases[].database_name`、`r2_buckets[].bucket_name`、`kv_namespaces[].id` を自分の値に
+   - `env.*.name`（Worker 名）を任意に
+   - `env.*.vars.WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN` を自分のデプロイ先ホスト（`<worker名>.<自分のサブドメイン>.workers.dev`、またはカスタムドメイン）に。`WEBAUTHN_RP_ID` は `ORIGIN` のホスト名部分と一致させる
+4. GitHub（フォーク先）に Secrets `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` を登録
+5. `pnpm db:migrate:staging` / `pnpm db:migrate:prod` → `pnpm deploy:staging` / `pnpm deploy:prod`
+6. ローカルは `cp .dev.vars.example .dev.vars`（`WEBAUTHN_RP_ID=localhost` / `ORIGIN=http://localhost:5173` のまま可）→ `docker compose up`
+
+`wrangler.jsonc` に秘密情報は無いので、変更をそのままフォークにコミットしてよい。
