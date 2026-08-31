@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, redirect, useNavigate } from "react-router";
+import { Logo } from "~/components/Logo";
 import { registerPasskey } from "~/lib/webauthn-client";
 import { getAuth } from "~/server/auth.server";
 import { getServerContext } from "~/server/context.server";
@@ -38,33 +39,36 @@ export default function Register() {
 
   return (
     <div className="mx-auto max-w-sm space-y-6">
-      <h1 className="text-xl font-bold">新規登録</h1>
+      <Link to="/" className="mx-auto block w-fit py-2">
+        <Logo size={36} />
+      </Link>
+      <h1 className="font-mincho text-xl font-medium tracking-wide">新規登録</h1>
 
       <form className="space-y-4" onSubmit={onSubmit}>
         <label className="block">
-          <span className="text-sm text-stone-600">メールアドレス</span>
+          <span className="text-sm text-sumi-soft">メールアドレス</span>
           <input
             name="email"
             type="email"
             autoComplete="username webauthn"
             required
-            className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+            className="mt-1 w-full rounded border border-rule px-3 py-2"
           />
         </label>
         <label className="block">
-          <span className="text-sm text-stone-600">俳号（表示名）</span>
+          <span className="text-sm text-sumi-soft">俳号（表示名）</span>
           <input
             name="haigo"
             type="text"
             required
             maxLength={30}
-            className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+            className="mt-1 w-full rounded border border-rule px-3 py-2"
           />
         </label>
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded bg-stone-900 px-4 py-2 text-white hover:bg-stone-700 disabled:opacity-50"
+          className="w-full rounded bg-ai px-4 py-2 text-washi hover:bg-ai-deep disabled:opacity-50"
         >
           {pending ? "登録中…" : "パスキーを作成して登録"}
         </button>
@@ -72,7 +76,7 @@ export default function Register() {
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-      <p className="text-sm text-stone-500">
+      <p className="text-sm text-sumi-soft">
         すでにアカウントをお持ちの場合は{" "}
         <Link to="/login" className="underline">
           ログイン

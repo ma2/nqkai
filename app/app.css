@@ -1,8 +1,33 @@
 @import "tailwindcss";
 
+/*
+ * nQkai のデザイントークン。
+ * 素材＝墨（sumi）・和紙（washi）・表装の藍（ai）・落款の朱（shu）。
+ */
 @theme {
-  --font-sans: "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", system-ui, sans-serif;
-  --font-serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+  --color-sumi: #1c1a16;
+  --color-sumi-soft: #6a6357;
+  --color-washi: #eef0e9;
+  --color-washi-edge: #e6e7df;
+  --color-rule: #d6d7cc;
+  --color-ai: #2c4a6b;
+  --color-ai-deep: #203a56;
+  --color-shu: #a8432b;
+
+  --font-mincho:
+    "Hiragino Mincho ProN", "Hiragino Mincho Pro", "YuMincho", "Yu Mincho", "Noto Serif JP",
+    "Source Han Serif JP", serif;
+  --font-gothic:
+    "Hiragino Kaku Gothic ProN", "Hiragino Sans", "YuGothic", "Yu Gothic", "Noto Sans JP",
+    system-ui, sans-serif;
+
+  --text-2xs: 0.75rem;
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
 }
 
 :root {
@@ -11,19 +36,72 @@
 
 html {
   -webkit-text-size-adjust: 100%;
-  font-family: var(--font-sans);
+  font-family: var(--font-gothic);
 }
 
 body {
-  background-color: var(--color-stone-50);
-  color: var(--color-stone-900);
+  background-color: var(--color-washi);
+  color: var(--color-sumi);
+  line-height: 1.75;
   -webkit-font-smoothing: antialiased;
 }
 
-/* 縦書き（句カード・選句シート・個人俳句一覧で使用。管理系 UI は横書き） */
+/* 数値・件数・日時など。等幅数字で桁を揃える。 */
+@utility u-data {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  font-size: var(--text-xs);
+  color: var(--color-sumi-soft);
+}
+
+/* 短冊：句を縦組みで載せる細長い面。 */
 @utility tategaki {
   writing-mode: vertical-rl;
   text-orientation: upright;
+  font-family: var(--font-mincho);
   line-break: strict;
-  font-family: var(--font-serif);
+  letter-spacing: 0.14em;
+  line-height: 1.15;
+}
+
+@keyframes seal-press {
+  0% {
+    transform: scale(1.18) rotate(-4deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(0.96) rotate(-4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-4deg);
+    opacity: 1;
+  }
+}
+.seal-in {
+  animation: seal-press 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seal-in {
+    animation: none;
+  }
+}
+
+/* file input をボタン然と見せる（プロフィール・結社画像） */
+@utility file-btn {
+  color: var(--color-sumi-soft);
+}
+.file-btn::file-selector-button {
+  margin-right: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  border-radius: 3px;
+  background-color: var(--color-washi-edge);
+  color: var(--color-sumi);
+  cursor: pointer;
+  font: inherit;
+}
+.file-btn::file-selector-button:hover {
+  background-color: var(--color-rule);
 }

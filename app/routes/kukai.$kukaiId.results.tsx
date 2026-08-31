@@ -1,4 +1,6 @@
 import { data, Form, Link, redirect } from "react-router";
+import { TanzakuItem, TanzakuList } from "~/components/Tanzaku";
+import { ActionNote, PageTitle } from "~/components/ui";
 import {
   isAtOrAfter,
   KUKAI_PHASE_LABEL,
@@ -72,50 +74,56 @@ export default function Results({ loaderData, actionData }: Route.ComponentProps
   const { kukaiId, name, theme, phase, authorsRevealed, canComment, rows, comments } = loaderData;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <p className="text-sm text-stone-500">
-        <Link to={`/kukai/${kukaiId}`} className="underline">
+    <div className="space-y-6">
+      <p className="text-xs text-sumi-soft">
+        <Link to={`/kukai/${kukaiId}`} className="hover:text-ai">
           ← {name}
         </Link>
       </p>
-      <div>
-        <h1 className="text-xl font-bold">結果・講評</h1>
-        <p className="mt-1 text-sm text-stone-500">
-          {KUKAI_PHASE_LABEL[phase as keyof typeof KUKAI_PHASE_LABEL] ?? phase}
-          {authorsRevealed ? "・作者公開済み" : "・作者は未公開"}
-        </p>
-        {theme ? <p className="text-stone-600">兼題：{theme}</p> : null}
-      </div>
+      <PageTitle>結果・講評</PageTitle>
+      <p className="border-y border-rule py-2 u-data">
+        {KUKAI_PHASE_LABEL[phase as keyof typeof KUKAI_PHASE_LABEL] ?? phase}
+        {authorsRevealed ? " ・ 作者公開済み" : " ・ 作者は未公開"}
+        {theme ? (
+          <>
+            {" ・ 兼題 "}
+            <span className="text-sm text-sumi">{theme}</span>
+          </>
+        ) : null}
+      </p>
 
-      {actionData && "ok" in actionData && actionData.ok ? (
-        <p className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">{actionData.ok}</p>
-      ) : null}
-      {actionData && "error" in actionData && actionData.error ? (
-        <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{actionData.error}</p>
-      ) : null}
+      <ActionNote data={actionData} />
 
-      <ol className="space-y-4">
+      <TanzakuList>
         {rows.map((r) => {
           const cs = comments[r.submissionId] ?? [];
           return (
-            <li key={r.submissionId} className="rounded border border-stone-200 bg-white p-4">
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm font-medium text-stone-500">
-                  第{r.rank}位・{r.score}点
-                </span>
-                {r.authorHaigo ? (
-                  <span className="text-sm text-stone-600">作者：{r.authorHaigo}</span>
-                ) : null}
-              </div>
-              <p className="tategaki mx-auto my-2 max-h-48 text-lg">{r.content}</p>
-              <p className="text-sm text-stone-500">
+            <TanzakuItem
+              key={r.submissionId}
+              content={r.content}
+              sealed={r.counts.special > 0}
+              lead={
+                <div className="flex flex-col items-center gap-1">
+                  <span className="font-mincho text-2xl leading-none text-sumi-soft">
+                    {rankKanji(r.rank)}
+                  </span>
+                  <span className="rounded-[3px] bg-washi-edge px-1.5 py-0.5 u-data">
+                    {r.score}点
+                  </span>
+                </div>
+              }
+            >
+              <p className="u-data">
                 {(["special", "regular", "reverse"] as SelectionKind[])
                   .filter((ki) => r.counts[ki] > 0)
                   .map((ki) => `${SELECTION_KIND_LABEL[ki]} ${r.counts[ki]}`)
-                  .join("・") || "選なし"}
+                  .join(" ・ ") || "選なし"}
               </p>
+              {r.authorHaigo ? (
+                <p className="mt-1 text-sm text-sumi">作者：{r.authorHaigo}</p>
+              ) : null}
               {r.selectors.length > 0 ? (
-                <p className="mt-1 text-xs text-stone-400">
+                <p className="mt-1 text-xs text-sumi-soft">
                   {r.selectors
                     .map((s) => `${s.haigo ?? "?"}（${SELECTION_KIND_LABEL[s.kind]}）`)
                     .join("、")}
@@ -123,38 +131,43 @@ export default function Results({ loaderData, actionData }: Route.ComponentProps
               ) : null}
 
               {cs.length > 0 ? (
-                <ul className="mt-3 space-y-1 border-t border-stone-100 pt-2 text-sm">
+                <ul className="mt-2 space-y-1 border-t border-rule pt-2 text-sm">
                   {cs.map((c) => (
                     <li key={c.id}>
-                      <span className="text-stone-400">{c.haigo ?? "?"}：</span>
-                      <span className="whitespace-pre-wrap text-stone-700">{c.body}</span>
+                      <span className="text-sumi-soft">{c.haigo ?? "?"}：</span>
+                      <span className="whitespace-pre-wrap text-sumi">{c.body}</span>
                     </li>
                   ))}
                 </ul>
               ) : null}
 
               {canComment ? (
-                <Form method="post" className="mt-2 flex items-end gap-2">
+                <Form method="post" className="mt-2 flex items-center gap-2">
                   <input type="hidden" name="submissionId" value={r.submissionId} />
                   <input
                     name="body"
                     required
                     maxLength={1000}
                     placeholder="講評コメント"
-                    className="flex-1 rounded border border-stone-300 px-2 py-1 text-sm"
+                    className="min-w-0 flex-1 rounded-[3px] border border-rule bg-transparent px-2 py-1 text-sm outline-none focus:border-ai"
                   />
                   <button
                     type="submit"
-                    className="rounded border border-stone-300 px-2 py-1 text-sm hover:bg-stone-100"
+                    className="shrink-0 rounded-[3px] border border-rule px-2.5 py-1 text-xs text-sumi-soft hover:bg-washi-edge"
                   >
                     投稿
                   </button>
                 </Form>
               ) : null}
-            </li>
+            </TanzakuItem>
           );
         })}
-      </ol>
+      </TanzakuList>
     </div>
   );
+}
+
+const KANJI = ["〇", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
+function rankKanji(n: number): string {
+  return n >= 1 && n <= 10 ? KANJI[n]! : `${n}`;
 }

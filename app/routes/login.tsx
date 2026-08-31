@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Link, redirect, useNavigate, useSearchParams } from "react-router";
+import { Logo } from "~/components/Logo";
 import { safeNext } from "~/lib/nav";
 import { loginPasskey } from "~/lib/webauthn-client";
 import { getAuth } from "~/server/auth.server";
@@ -46,7 +47,10 @@ export default function Login() {
 
   return (
     <div className="mx-auto max-w-sm space-y-6">
-      <h1 className="text-xl font-bold">ログイン</h1>
+      <Link to="/" className="mx-auto block w-fit py-2">
+        <Logo size={36} />
+      </Link>
+      <h1 className="font-mincho text-xl font-medium tracking-wide">ログイン</h1>
 
       <form
         className="space-y-4"
@@ -56,20 +60,20 @@ export default function Login() {
         }}
       >
         <label className="block">
-          <span className="text-sm text-stone-600">メールアドレス</span>
+          <span className="text-sm text-sumi-soft">メールアドレス</span>
           <input
             ref={emailRef}
             name="email"
             type="email"
             autoComplete="username webauthn"
             required
-            className="mt-1 w-full rounded border border-stone-300 px-3 py-2"
+            className="mt-1 w-full rounded border border-rule px-3 py-2"
           />
         </label>
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded bg-stone-900 px-4 py-2 text-white hover:bg-stone-700 disabled:opacity-50"
+          className="w-full rounded bg-ai px-4 py-2 text-washi hover:bg-ai-deep disabled:opacity-50"
         >
           {pending ? "認証中…" : "パスキーでログイン"}
         </button>
@@ -79,20 +83,20 @@ export default function Login() {
         type="button"
         disabled={pending}
         onClick={() => void run(false)}
-        className="w-full rounded border border-stone-300 px-4 py-2 text-stone-700 hover:bg-stone-100 disabled:opacity-50"
+        className="w-full rounded border border-rule px-4 py-2 text-sumi hover:bg-washi-edge disabled:opacity-50"
       >
         端末のパスキーを選んでログイン
       </button>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-      <p className="text-sm text-stone-500">
+      <p className="text-sm text-sumi-soft">
         アカウントをお持ちでない場合は{" "}
         <Link to="/register" className="underline">
           新規登録
         </Link>
       </p>
-      <p className="text-sm text-stone-500">
+      <p className="text-sm text-sumi-soft">
         パスキーを使えない場合は{" "}
         <Link to="/recover" className="underline">
           パスキーの復旧

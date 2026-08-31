@@ -1,4 +1,5 @@
 import { data, Form, Link } from "react-router";
+import { ActionNote } from "~/components/ui";
 import { KUKAI_PHASE_LABEL } from "~/lib/constants";
 import { submissionSchema } from "~/lib/schemas";
 import { requireAuth } from "~/server/auth.server";
@@ -76,23 +77,18 @@ export default function Submit({ loaderData, actionData }: Route.ComponentProps)
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <p className="text-sm text-stone-500">
+      <p className="text-sm text-sumi-soft">
         <Link to={`/kukai/${kukaiId}`} className="underline">
           ← {name}
         </Link>
       </p>
-      <h1 className="text-xl font-bold">投句</h1>
-      {theme ? <p className="text-stone-600">兼題：{theme}</p> : null}
+      <h1 className="font-mincho text-xl font-medium tracking-wide">投句</h1>
+      {theme ? <p className="text-sumi-soft">兼題：{theme}</p> : null}
 
-      {actionData && "ok" in actionData && actionData.ok ? (
-        <p className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">{actionData.ok}</p>
-      ) : null}
-      {actionData && "error" in actionData && actionData.error ? (
-        <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{actionData.error}</p>
-      ) : null}
+      <ActionNote data={actionData} />
 
       {!open ? (
-        <p className="rounded bg-stone-100 px-3 py-2 text-sm">
+        <p className="rounded bg-washi-edge px-3 py-2 text-sm">
           いまは投句期間ではありません（現在：
           {KUKAI_PHASE_LABEL[phase as keyof typeof KUKAI_PHASE_LABEL] ?? phase}）。
         </p>
@@ -100,7 +96,7 @@ export default function Submit({ loaderData, actionData }: Route.ComponentProps)
 
       <ul className="space-y-3">
         {mine.map((s) => (
-          <li key={s.id} className="rounded border border-stone-200 p-3">
+          <li key={s.id} className="rounded border border-rule p-3">
             <Form method="post" className="flex items-end gap-2">
               <input type="hidden" name="intent" value="edit" />
               <input type="hidden" name="id" value={s.id} />
@@ -109,24 +105,22 @@ export default function Submit({ loaderData, actionData }: Route.ComponentProps)
                 defaultValue={s.content}
                 maxLength={120}
                 disabled={!open}
-                className="flex-1 rounded border border-stone-300 px-3 py-2"
+                className="flex-1 rounded border border-rule px-3 py-2"
               />
               {open ? (
-                <>
-                  <button
-                    type="submit"
-                    className="rounded bg-stone-900 px-3 py-2 text-sm text-white hover:bg-stone-700"
-                  >
-                    更新
-                  </button>
-                </>
+                <button
+                  type="submit"
+                  className="rounded bg-ai px-3 py-2 text-sm text-washi hover:bg-ai-deep"
+                >
+                  更新
+                </button>
               ) : null}
             </Form>
             {open ? (
               <Form method="post" className="mt-1 text-right">
                 <input type="hidden" name="intent" value="delete" />
                 <input type="hidden" name="id" value={s.id} />
-                <button type="submit" className="text-xs text-stone-500 underline">
+                <button type="submit" className="text-xs text-sumi-soft underline">
                   削除
                 </button>
               </Form>
@@ -143,17 +137,14 @@ export default function Submit({ loaderData, actionData }: Route.ComponentProps)
             required
             maxLength={120}
             placeholder="一句"
-            className="flex-1 rounded border border-stone-300 px-3 py-2"
+            className="flex-1 rounded border border-rule px-3 py-2"
           />
-          <button
-            type="submit"
-            className="rounded bg-stone-900 px-4 py-2 text-white hover:bg-stone-700"
-          >
+          <button type="submit" className="rounded bg-ai px-4 py-2 text-washi hover:bg-ai-deep">
             投句
           </button>
         </Form>
       ) : open ? (
-        <p className="text-sm text-stone-500">投句上限（{limit} 句）に達しています。</p>
+        <p className="text-sm text-sumi-soft">投句上限（{limit} 句）に達しています。</p>
       ) : null}
     </div>
   );

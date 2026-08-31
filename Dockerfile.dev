@@ -6,7 +6,9 @@ RUN corepack enable
 WORKDIR /app
 
 # 依存だけ先に入れてレイヤキャッシュを効かせる
-COPY package.json pnpm-lock.yaml ./
+# pnpm-workspace.yaml も先に置く（onlyBuiltDependencies / allowBuilds を
+# install 時に読ませないと esbuild・workerd のネイティブビルドが弾かれる）
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .

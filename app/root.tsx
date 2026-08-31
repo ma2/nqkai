@@ -11,11 +11,15 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 import stylesheet from "./app.css?url";
+import { Logo, LogoMark } from "./components/Logo";
 import { getAuth } from "./server/auth.server";
 import { getServerContext } from "./server/context.server";
 import { countUnread } from "./server/notifications.server";
 
-export const links: Route.LinksFunction = () => [{ rel: "stylesheet", href: stylesheet }];
+export const links: Route.LinksFunction = () => [
+  { rel: "stylesheet", href: stylesheet },
+  { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+];
 
 export const meta: Route.MetaFunction = () => [
   { title: "nQkai" },
@@ -63,33 +67,33 @@ function Header({
   unreadCount: number;
 }) {
   return (
-    <header className="border-b border-stone-200 bg-white">
-      <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-3">
-        <Link to="/" className="text-lg font-bold tracking-tight">
-          nQkai
+    <header className="border-b border-rule">
+      <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-4">
+        <Link to="/" aria-label="nQkai ホーム">
+          <Logo />
         </Link>
         <nav className="flex items-center gap-4 text-sm">
           {user ? (
             <>
-              <Link to="/orgs" className="hidden text-stone-700 hover:text-stone-950 sm:inline">
+              <Link to="/orgs" className="hidden text-sumi hover:text-ai sm:inline">
                 結社
               </Link>
-              <Link to="/notifications" className="text-stone-700 hover:text-stone-950">
+              <Link to="/notifications" className="text-sumi hover:text-ai">
                 通知
                 {unreadCount > 0 ? (
-                  <span className="ml-1 rounded-full bg-stone-900 px-1.5 py-0.5 text-xs text-white">
+                  <span className="ml-1 inline-flex min-w-[1.25rem] justify-center rounded-full bg-shu px-1 py-0.5 text-2xs text-washi">
                     {unreadCount}
                   </span>
                 ) : null}
               </Link>
-              <Link to="/settings" className="text-stone-700 hover:text-stone-950">
+              <Link to="/settings" className="text-sumi hover:text-ai">
                 {user.haigo}
               </Link>
               <Form method="post" action="/settings">
                 <input type="hidden" name="intent" value="logout" />
                 <button
                   type="submit"
-                  className="rounded border border-stone-300 px-2 py-1 text-stone-600 hover:bg-stone-100"
+                  className="rounded-[3px] border border-rule px-2 py-1 text-sumi-soft hover:bg-washi-edge"
                 >
                   ログアウト
                 </button>
@@ -97,12 +101,12 @@ function Header({
             </>
           ) : (
             <>
-              <Link to="/login" className="text-stone-700 hover:text-stone-950">
+              <Link to="/login" className="text-sumi hover:text-ai">
                 ログイン
               </Link>
               <Link
                 to="/register"
-                className="rounded bg-stone-900 px-3 py-1 text-white hover:bg-stone-700"
+                className="rounded-[3px] bg-ai px-3 py-1.5 text-washi hover:bg-ai-deep"
               >
                 新規登録
               </Link>
@@ -122,8 +126,11 @@ export default function App({ loaderData }: Route.ComponentProps) {
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <Outlet />
       </main>
-      <footer className="border-t border-stone-200 py-6 text-center text-xs text-stone-400">
-        nQkai
+      <footer className="mt-16 border-t border-rule py-6 text-center text-xs text-sumi-soft">
+        <span className="inline-flex items-center gap-1.5">
+          <LogoMark size={14} className="text-sumi-soft" />
+          nQkai
+        </span>
       </footer>
     </div>
   );
@@ -142,10 +149,10 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
-      <h1 className="text-xl font-bold">{title}</h1>
-      {detail ? <p className="mt-2 text-sm text-stone-500">{detail}</p> : null}
+      <h1 className="font-mincho text-xl font-medium tracking-wide">{title}</h1>
+      {detail ? <p className="mt-2 text-sm text-sumi-soft">{detail}</p> : null}
       <p className="mt-6">
-        <Link to="/" className="text-sm text-stone-700 underline">
+        <Link to="/" className="text-sm text-sumi underline">
           トップへ戻る
         </Link>
       </p>

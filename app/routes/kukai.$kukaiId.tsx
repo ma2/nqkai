@@ -1,4 +1,6 @@
 import { data, Form, Link } from "react-router";
+import { PhaseTrack } from "~/components/PhaseTrack";
+import { ActionNote, Note, PageTitle, Panel, SectionLabel } from "~/components/ui";
 import { useKukaiStatePolling } from "~/hooks/useKukaiStatePolling";
 import { isAtOrAfter, KUKAI_PHASE_LABEL, KUKAI_PHASES, phaseIndex } from "~/lib/constants";
 import { getAuth, requireAuth } from "~/server/auth.server";
@@ -133,41 +135,37 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
   return (
     <div className="space-y-8">
       {k.deleted ? (
-        <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
-          この句会は削除されています（管理者は復活できます）。
-        </p>
+        <Note tone="error">この句会は削除されています（管理者は復活できます）。</Note>
       ) : null}
 
-      <div>
-        <p className="text-sm text-stone-500">
-          <Link to={`/orgs/${k.org.id}`} className="underline">
+      <div className="space-y-3">
+        <p className="text-xs text-sumi-soft">
+          <Link to={`/orgs/${k.org.id}`} className="hover:text-ai">
             {k.org.name}
           </Link>
         </p>
-        <h1 className="text-2xl font-bold">{k.name}</h1>
-        {k.theme ? <p className="mt-1 text-stone-600">兼題：{k.theme}</p> : null}
-        <p className="mt-1">
-          <span className="rounded bg-stone-900 px-2 py-0.5 text-xs text-white">
-            {KUKAI_PHASE_LABEL[k.phase as keyof typeof KUKAI_PHASE_LABEL] ?? k.phase}
-          </span>
-        </p>
+        <PageTitle>{k.name}</PageTitle>
+        {k.theme ? (
+          <p className="u-data">
+            兼題 <span className="text-sm text-sumi">{k.theme}</span>
+          </p>
+        ) : null}
       </div>
 
-      {k.description ? <p className="whitespace-pre-wrap text-stone-700">{k.description}</p> : null}
+      <div className="border-y border-rule py-3">
+        <PhaseTrack phase={k.phase} />
+      </div>
 
-      {actionData && "ok" in actionData && actionData.ok ? (
-        <p className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">{actionData.ok}</p>
-      ) : null}
-      {actionData && "error" in actionData && actionData.error ? (
-        <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{actionData.error}</p>
-      ) : null}
+      {k.description ? <p className="whitespace-pre-wrap text-sumi">{k.description}</p> : null}
+
+      <ActionNote data={actionData} />
 
       {/* 参加者の導線 */}
       <div className="flex flex-wrap gap-3">
         {canSubmit ? (
           <Link
             to={`/kukai/${k.id}/submit`}
-            className="rounded bg-stone-900 px-4 py-2 text-sm text-white hover:bg-stone-700"
+            className="rounded bg-ai px-4 py-2 text-sm text-washi hover:bg-ai-deep"
           >
             投句する（{myCount}/{k.submissionsPerUser}）
           </Link>
@@ -175,7 +173,7 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
         {canSelect ? (
           <Link
             to={`/kukai/${k.id}/select`}
-            className="rounded bg-stone-900 px-4 py-2 text-sm text-white hover:bg-stone-700"
+            className="rounded bg-ai px-4 py-2 text-sm text-washi hover:bg-ai-deep"
           >
             選句する
           </Link>
@@ -183,7 +181,7 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
         {showResults ? (
           <Link
             to={`/kukai/${k.id}/results`}
-            className="rounded border border-stone-300 px-4 py-2 text-sm hover:bg-stone-100"
+            className="rounded border border-rule px-4 py-2 text-sm hover:bg-washi-edge"
           >
             結果・講評
           </Link>
@@ -192,8 +190,8 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
 
       {/* 主催者パネル */}
       {canManage ? (
-        <section className="space-y-4 rounded border border-stone-200 bg-white p-4">
-          <h2 className="text-lg font-semibold">主催者メニュー</h2>
+        <Panel as="section" className="space-y-4">
+          <SectionLabel>主催者メニュー</SectionLabel>
 
           <div className="flex flex-wrap items-center gap-2">
             <Form method="post">
@@ -201,12 +199,12 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
               <button
                 type="submit"
                 disabled={!prevPhase}
-                className="rounded border border-stone-300 px-3 py-1.5 text-sm hover:bg-stone-100 disabled:opacity-40"
+                className="rounded border border-rule px-3 py-1.5 text-sm hover:bg-washi-edge disabled:opacity-40"
               >
                 {prevPhase ? `← ${KUKAI_PHASE_LABEL[prevPhase]} に戻す` : "← 前のフェーズ"}
               </button>
             </Form>
-            <span className="text-sm text-stone-600">
+            <span className="text-sm text-sumi-soft">
               現在：{KUKAI_PHASE_LABEL[k.phase as keyof typeof KUKAI_PHASE_LABEL]}
             </span>
             <Form method="post">
@@ -214,7 +212,7 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
               <button
                 type="submit"
                 disabled={!nextPhase}
-                className="rounded bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700 disabled:opacity-40"
+                className="rounded bg-ai px-3 py-1.5 text-sm text-washi hover:bg-ai-deep disabled:opacity-40"
               >
                 {nextPhase ? `${KUKAI_PHASE_LABEL[nextPhase]} に進める →` : "次のフェーズ →"}
               </button>
@@ -226,7 +224,7 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
               <input type="hidden" name="intent" value="revealAuthors" />
               <button
                 type="submit"
-                className="rounded border border-stone-300 px-3 py-1.5 text-sm hover:bg-stone-100"
+                className="rounded border border-rule px-3 py-1.5 text-sm hover:bg-washi-edge"
               >
                 作者を公開する
               </button>
@@ -236,18 +234,18 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
           {/* 投句の管理（既定は折りたたみ） */}
           {organizerSubmissions.length > 0 ? (
             <details className="space-y-2">
-              <summary className="cursor-pointer text-sm font-medium text-stone-600">
+              <summary className="cursor-pointer text-sm font-medium text-sumi-soft">
                 投句を確認・管理（{organizerSubmissions.length}）
               </summary>
-              <ul className="mt-2 divide-y divide-stone-200 rounded border border-stone-200">
+              <ul className="mt-2 divide-y divide-rule rounded border border-rule">
                 {organizerSubmissions.map((s) => (
                   <li
                     key={s.id}
                     className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
                   >
-                    <div className={s.isHidden ? "text-stone-400 line-through" : ""}>
+                    <div className={s.isHidden ? "text-sumi-soft line-through" : ""}>
                       {s.content}
-                      <span className="ml-2 text-stone-400">{s.authorHaigo ?? "?"}</span>
+                      <span className="ml-2 text-sumi-soft">{s.authorHaigo ?? "?"}</span>
                     </div>
                     <Form method="post">
                       <input
@@ -256,7 +254,7 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
                         value={s.isHidden ? "unhideSubmission" : "hideSubmission"}
                       />
                       <input type="hidden" name="submissionId" value={s.id} />
-                      <button type="submit" className="shrink-0 text-stone-500 underline">
+                      <button type="submit" className="shrink-0 text-sumi-soft underline">
                         {s.isHidden ? "再表示" : "非表示"}
                       </button>
                     </Form>
@@ -278,13 +276,13 @@ export default function KukaiTop({ loaderData, actionData }: Route.ComponentProp
               <input type="hidden" name="intent" value={k.deleted ? "restore" : "delete"} />
               <button
                 type="submit"
-                className={`text-sm underline ${k.deleted ? "text-stone-700" : "text-red-600"}`}
+                className={`text-sm underline ${k.deleted ? "text-sumi" : "text-red-600"}`}
               >
                 {k.deleted ? "句会を復活する" : "句会を削除する"}
               </button>
             </Form>
           ) : null}
-        </section>
+        </Panel>
       ) : null}
     </div>
   );
