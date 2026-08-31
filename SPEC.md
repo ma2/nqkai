@@ -830,7 +830,8 @@ Submission ||--o{ Comment
 
 | ルート | loader が返すもの | action（書き込み） | 権限 |
 |--------|-------------------|--------------------|------|
-| `_index`（`/`） | 所属結社、進行中の句会、未読通知数 | 通知の既読化 | 会員 |
+| `_index`（`/`） | 進行中の句会、過去の句会（先頭5件）、所属結社、未読通知数 | — | 会員 |
+| `kukai._index`（`/kukai`） | 進行中の句会・過去の句会（会員として所属する結社のもの） | — | 会員 |
 | `login` / `register` | — | （WebAuthn はリソースルート） | 未認証 |
 | `recover`（`/recover`） | 説明文（依頼フォーム／コード入力フォームの2モード） | 復旧依頼の作成（`recovery_requests`） | 未認証。WebAuthn 再登録はリソースルート |
 | `settings` | プロフィール、登録済み認証子一覧 | 俳号更新 / 画像更新・削除 / 認証子削除 / 退会 / 全端末ログアウト | 本人 |
@@ -878,7 +879,8 @@ Submission ||--o{ Comment
 
 | URL | ルートモジュール | 画面 | 認証 |
 |-----|------------------|------|------|
-| `/` | `routes/_index.tsx` | ダッシュボード（所属結社、進行中の句会、通知） | 要 |
+| `/` | `routes/_index.tsx` | ダッシュボード（進行中の句会・過去の句会・所属結社・未読通知） | 要 |
+| `/kukai` | `routes/kukai._index.tsx` | 句会一覧（進行中・過去）。ヘッダから常時アクセス | 要 |
 | `/login` `/register` | `routes/login.tsx` `routes/register.tsx` | パスキー認証 | 不要 |
 | `/recover` | `routes/recover.tsx` | パスキー復旧（依頼 / コード入力）「5.5」 | 不要 |
 | `/notifications` | `routes/notifications.tsx` | アプリ内通知一覧・既読 | 要 |
@@ -1060,6 +1062,8 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 - ✅ 句の非表示（主催者）、句会の論理削除・復活（主催者 + 結社管理者・副管理者）
 - ✅ テスト：Vitest（フェーズ順序ヘルパ）+ Playwright（作成→フェーズ遷移→投句→締切→選句→結果→作者公開の1サイクル）
 - マイグレーション `0003_kukai_cycle.sql`。**ゲスト（`guest_codes` / `guest_participants`）はフェーズ4で追加**。`submissions` / `selections` / `comments` の `*_guest_id` 列は用意だけして未使用（FK なし）
+- ✅ フェーズ変更通知の文面を「『{句会名}』のフェーズが『{旧}』から『{新}』に変わりました」に（`phase_changed` ペイロードに `kukaiName` / `fromPhase` 追加、`app/lib/notifications.ts`）— issue #11
+- ✅ 句会一覧 `/kukai`（進行中・過去）とヘッダ導線、ダッシュボードのメニュー順を「進行中の句会／過去の句会／所属する結社」に（`listPastKukaiForUser`、`KukaiList` 共用コンポーネント）— issue #13 / #14
 
 ### フェーズ4：ゲスト・表示・エクスポート
 

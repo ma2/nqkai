@@ -129,6 +129,20 @@ test("句会の1サイクル：作成→投句→選句→結果→作者公開"
     b.getByText(`「一月例会 ${s}」のフェーズが「投句期間」から「投句締切」に変わりました`),
   ).toBeVisible();
 
+  // 講評期間 → 講評締切 → 終了
+  await a.goto(kukaiUrl);
+  await advance(a, 3);
+  await expect(a.getByText("現在：終了")).toBeVisible();
+
+  // ヘッダの「進行中の句会」から句会一覧へ。終了した句会は「過去の句会」に入る（issue #13 / #14）
+  await b.goto("/");
+  await b.getByRole("link", { name: "進行中の句会" }).click();
+  await expect(b).toHaveURL("/kukai");
+  const pastSection = b.locator("section", { hasText: "過去の句会" });
+  await expect(pastSection.getByRole("link", { name: new RegExp(`一月例会 ${s}`) })).toBeVisible();
+  const activeSection = b.locator("section", { hasText: "進行中の句会" });
+  await expect(activeSection.getByText("進行中の句会はありません。")).toBeVisible();
+
   await aCtx.close();
   await bCtx.close();
 });

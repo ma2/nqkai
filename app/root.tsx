@@ -75,8 +75,9 @@ function Header({
         <nav className="flex items-center gap-4 text-sm">
           {user ? (
             <>
-              <Link to="/orgs" className="hidden text-sumi hover:text-ai sm:inline">
-                結社
+              <Link to="/kukai" className="text-sumi hover:text-ai">
+                <span className="sm:hidden">句会</span>
+                <span className="hidden sm:inline">進行中の句会</span>
               </Link>
               <Link to="/notifications" className="text-sumi hover:text-ai">
                 通知

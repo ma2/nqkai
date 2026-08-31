@@ -16,6 +16,7 @@ export default [
   route("orgs/:orgId/kukai/new", "routes/orgs.$orgId.kukai.new.tsx"),
 
   // 句会
+  route("kukai", "routes/kukai._index.tsx"),
   route("kukai/:kukaiId", "routes/kukai.$kukaiId.tsx"),
   route("kukai/:kukaiId/submit", "routes/kukai.$kukaiId.submit.tsx"),
   route("kukai/:kukaiId/select", "routes/kukai.$kukaiId.select.tsx"),
