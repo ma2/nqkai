@@ -321,21 +321,27 @@ export async function getKukaiState(db: Db, kukaiId: string) {
   };
 }
 
-/** ユーザーが「参加している」句会（自分の結社の、進行中） */
-export async function listActiveKukaiForUser(db: Db, userId: string) {
+/** ユーザーが会員として所属する結社の句会を引く共通クエリ（絞り込みは呼び出し側）。 */
+function kukaiForUserQuery(db: Db) {
   return db
     .select({
       id: kukai.id,
       name: kukai.name,
       phase: kukai.phase,
       orgName: organizations.name,
+      updatedAt: kukai.updatedAt,
     })
     .from(kukai)
     .innerJoin(organizations, eq(organizations.id, kukai.organizationId))
     .innerJoin(
       organizationMemberships,
       eq(organizationMemberships.organizationId, kukai.organizationId),
-    )
+    );
+}
+
+/** 進行中（draft / closed 以外）の句会。会員として所属する結社のもの。 */
+export async function listActiveKukaiForUser(db: Db, userId: string) {
+  return kukaiForUserQuery(db)
     .where(
       and(
         eq(organizationMemberships.userId, userId),
@@ -344,5 +350,20 @@ export async function listActiveKukaiForUser(db: Db, userId: string) {
       ),
     )
     .orderBy(desc(kukai.updatedAt))
+    .all();
+}
+
+/** 終了した（closed）句会。新しい順。 */
+export async function listPastKukaiForUser(db: Db, userId: string, limit = 50) {
+  return kukaiForUserQuery(db)
+    .where(
+      and(
+        eq(organizationMemberships.userId, userId),
+        isNull(kukai.deletedAt),
+        eq(kukai.phase, "closed"),
+      ),
+    )
+    .orderBy(desc(kukai.updatedAt))
+    .limit(limit)
     .all();
 }
