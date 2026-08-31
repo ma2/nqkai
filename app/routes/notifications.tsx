@@ -1,4 +1,5 @@
 import { data, Form, Link } from "react-router";
+import { notificationMessage } from "~/lib/notifications";
 import { requireAuth } from "~/server/auth.server";
 import { getServerContext } from "~/server/context.server";
 import { assertTrustedRequest } from "~/server/http.server";
@@ -7,33 +8,22 @@ import type { Route } from "./+types/notifications";
 
 export const meta: Route.MetaFunction = () => [{ title: "通知 — nQkai" }];
 
-const MESSAGES: Record<string, string> = {
-  join_request_received: "結社への参加申請が届きました",
-  join_approved: "結社への参加が承認されました",
-  join_rejected: "結社への参加申請が却下されました",
-  member_removed: "結社から退会処理されました",
-  role_changed: "結社での役割が変更されました",
-  organization_closed: "結社が閉鎖されました",
-  recovery_requested: "パスキー復旧の依頼が届きました",
-  recovery_code_issued: "パスキー復旧コードが発行されました",
-  recovery_code_used: "パスキー復旧コードが使用されました",
-  phase_changed: "句会のフェーズが変わりました",
-  kukai_deleted: "句会が削除されました",
-};
-
 export async function loader({ request, context }: Route.LoaderArgs) {
   const { db } = getServerContext(context);
   const auth = await requireAuth(db, request);
   const items = await listNotifications(db, auth.user.id);
   return {
-    items: items.map((n) => ({
-      id: n.id,
-      type: n.type,
-      message: MESSAGES[n.type] ?? n.type,
-      payload: JSON.parse(n.payload) as Record<string, unknown>,
-      readAt: n.readAt,
-      createdAt: n.createdAt,
-    })),
+    items: items.map((n) => {
+      const payload = JSON.parse(n.payload) as Record<string, unknown>;
+      return {
+        id: n.id,
+        type: n.type,
+        message: notificationMessage(n.type, payload),
+        payload,
+        readAt: n.readAt,
+        createdAt: n.createdAt,
+      };
+    }),
   };
 }
 
@@ -57,6 +47,7 @@ function fmt(d: Date): string {
 }
 
 function linkFor(payload: Record<string, unknown>): string | null {
+  if (typeof payload.kukaiId === "string") return `/kukai/${payload.kukaiId}`;
   if (typeof payload.organizationId === "string") return `/orgs/${payload.organizationId}`;
   return null;
 }

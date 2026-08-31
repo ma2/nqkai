@@ -597,7 +597,7 @@ Submission ||--o{ Comment
 | id | TEXT PK | |
 | user_id | TEXT FK → users | 宛先 |
 | type | TEXT | `join_request_received` / `join_approved` / `join_rejected` / `phase_changed` / `kukai_deleted` / `recovery_requested` / `recovery_code_issued` / `recovery_code_used` など |
-| payload | TEXT | JSON（結社 ID、句会 ID、フェーズ名など） |
+| payload | TEXT | JSON（結社 ID、句会 ID・句会名、旧/新フェーズ名など）。通知一覧の文面生成に使う |
 | read_at | INTEGER NULL | |
 | created_at | INTEGER | |
 
@@ -684,7 +684,7 @@ Submission ||--o{ Comment
 - `advance` は上表の次の状態へ、`rewind` は1つ前へ。巻き戻しはデータを破棄しない（例：`selection` → `submission_closed` に戻しても選句データは残す）。
 - `scheduled_*_at` は UI に「予定」として表示するだけで、到達しても自動遷移しない。主催者は任意のタイミングで予定時刻を変更（延長）できる（`action: extend`）。
 - すべての遷移を `kukai_phase_events` に記録する。
-- フェーズ変更時、当該句会の参加者（会員のみ）に `phase_changed` のアプリ内通知を作成する。
+- フェーズ変更時、当該句会の参加者（会員のみ）に `phase_changed` のアプリ内通知を作成する。ペイロードに `kukaiId` / `kukaiName` / `fromPhase` / `phase`（遷移後）を含め、通知一覧では「『{句会名}』のフェーズが『{旧フェーズ}』から『{新フェーズ}』に変わりました」と表示する。
 
 ### 8.3 作者公開
 

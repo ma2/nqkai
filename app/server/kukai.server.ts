@@ -198,7 +198,12 @@ export async function transitionPhase(
   });
 
   const members = (await getOrgMemberUserIds(db, k.organizationId)).filter((id) => id !== actorId);
-  await notifyMany(db, members, "phase_changed", { kukaiId: k.id, phase: to });
+  await notifyMany(db, members, "phase_changed", {
+    kukaiId: k.id,
+    kukaiName: k.name,
+    fromPhase: k.phase,
+    phase: to,
+  });
 
   return to;
 }

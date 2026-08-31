@@ -123,6 +123,12 @@ test("句会の1サイクル：作成→投句→選句→結果→作者公開"
   await expect(a.getByText("作者：門人")).toBeVisible();
   await expect(a.getByText("作者：主宰")).toBeVisible();
 
+  // メンバー B の通知は「旧フェーズから新フェーズに変わりました」形式（issue #11）
+  await b.goto("/notifications");
+  await expect(
+    b.getByText(`「一月例会 ${s}」のフェーズが「投句期間」から「投句締切」に変わりました`),
+  ).toBeVisible();
+
   await aCtx.close();
   await bCtx.close();
 });
