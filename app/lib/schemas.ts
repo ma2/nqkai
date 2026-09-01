@@ -6,10 +6,12 @@ export const haigoSchema = z
   .min(1, "俳号を入力してください")
   .max(30, "俳号は30文字以内で入力してください");
 
+// 先に trim + 小文字化してから形式を検証する（前後空白で弾かない）。
 export const emailSchema = z
-  .email("メールアドレスの形式が正しくありません")
-  .max(254, "メールアドレスが長すぎます")
-  .transform((v) => v.trim().toLowerCase());
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(z.email("メールアドレスの形式が正しくありません").max(254, "メールアドレスが長すぎます"));
 
 export const deviceNameSchema = z
   .string()
