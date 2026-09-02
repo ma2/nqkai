@@ -25,13 +25,21 @@ describe("newToken", () => {
 });
 
 describe("safeNext", () => {
-  it("自サイト内の絶対パスは許可", () => {
+  it("自サイト内の絶対パスは許可（クエリ・フラグメント込み）", () => {
     expect(safeNext("/settings")).toBe("/settings");
+    expect(safeNext("/kukai?tab=past#a")).toBe("/kukai?tab=past#a");
   });
-  it("外部 URL・プロトコル相対はフォールバック", () => {
+  it("外部 URL・プロトコル相対・バックスラッシュ誘導はフォールバック", () => {
     expect(safeNext("//evil.example")).toBe("/");
+    expect(safeNext("/\\evil.example")).toBe("/");
     expect(safeNext("https://evil.example")).toBe("/");
+    expect(safeNext("relative/path")).toBe("/");
+  });
+  it("空・未指定はフォールバック（既定は / 、指定も可）", () => {
     expect(safeNext(null)).toBe("/");
+    expect(safeNext("")).toBe("/");
+    expect(safeNext(undefined, "/login")).toBe("/login");
+    expect(safeNext("//x", "/login")).toBe("/login");
   });
 });
 

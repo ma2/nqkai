@@ -21,6 +21,18 @@ describe("通知本文", () => {
     expect(notificationMessage("phase_changed", {})).toBe("句会のフェーズが変わりました");
   });
 
+  it("phase_changed のフェーズ値が未知の文字列なら汎用文へフォールバック", () => {
+    expect(notificationMessage("phase_changed", { fromPhase: "bogus", phase: "also_bogus" })).toBe(
+      "句会のフェーズが変わりました",
+    );
+  });
+
+  it("句会名が無ければ「句会」で埋める", () => {
+    expect(
+      notificationMessage("phase_changed", { fromPhase: "submission", phase: "selection" }),
+    ).toBe("「句会」のフェーズが「投句期間」から「選句期間」に変わりました");
+  });
+
   it("他の種別は種別ごとの既定文", () => {
     expect(notificationMessage("join_approved", {})).toBe("結社への参加が承認されました");
   });
