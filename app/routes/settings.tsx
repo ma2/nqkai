@@ -65,6 +65,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       id: auth.user.id,
       haigo: auth.user.haigo,
       email: auth.user.email,
+      publicId: auth.user.publicId,
       isSystemAdmin: auth.user.isSystemAdmin,
       avatarUrl: auth.user.avatarKey
         ? `/api/avatars/${auth.user.id}?v=${auth.user.updatedAt.getTime()}`
@@ -285,6 +286,14 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
             </Form>
           ) : null}
         </Form>
+
+        <p className="text-sm text-sumi-soft">
+          公開句集：
+          <Link to={`/u/${user.publicId}`} className="ml-1 text-sumi underline">
+            /u/{user.publicId}
+          </Link>
+          <span className="ml-2 text-xs">（作者公開済みの句会の句が載ります）</span>
+        </p>
       </section>
 
       <section className="space-y-4">

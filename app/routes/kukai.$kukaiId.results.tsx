@@ -42,6 +42,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     phase: k.phase,
     authorsRevealed: k.authorsRevealedAt != null,
     canComment: ctx.canParticipate && k.phase === "commenting",
+    canExport: ctx.canManageDeletion,
     rows,
     comments,
   };
@@ -71,7 +72,8 @@ export async function action({ request, params, context }: Route.ActionArgs) {
 }
 
 export default function Results({ loaderData, actionData }: Route.ComponentProps) {
-  const { kukaiId, name, theme, phase, authorsRevealed, canComment, rows, comments } = loaderData;
+  const { kukaiId, name, theme, phase, authorsRevealed, canComment, canExport, rows, comments } =
+    loaderData;
 
   return (
     <div className="space-y-6">
@@ -91,6 +93,26 @@ export default function Results({ loaderData, actionData }: Route.ComponentProps
           </>
         ) : null}
       </p>
+
+      {canExport ? (
+        <p className="flex gap-4 text-xs text-sumi-soft">
+          <span>書き出し</span>
+          <Link
+            to={`/api/kukai/${kukaiId}/export?format=text`}
+            reloadDocument
+            className="hover:text-ai"
+          >
+            テキスト
+          </Link>
+          <Link
+            to={`/api/kukai/${kukaiId}/export?format=csv`}
+            reloadDocument
+            className="hover:text-ai"
+          >
+            CSV
+          </Link>
+        </p>
+      ) : null}
 
       <ActionNote data={actionData} />
 
