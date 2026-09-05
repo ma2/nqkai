@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildClearSessionCookie,
   buildSessionCookie,
+  readGuestSessionToken,
   readSessionToken,
 } from "~/server/auth.server";
 
 const NAME = "__Host-session";
+const GUEST_NAME = "__Host-guest-session";
 
 describe("buildSessionCookie", () => {
   it("__Host- 前提の属性（Secure / HttpOnly / SameSite=Lax / Path=/）を必ず持つ", () => {
@@ -52,5 +54,20 @@ describe("readSessionToken", () => {
     expect(readSessionToken(withCookie(`${NAME}=`))).toBeNull();
     expect(readSessionToken(withCookie("foo=1; bar=2"))).toBeNull();
     expect(readSessionToken(new Request("https://nqkai.test/"))).toBeNull();
+  });
+});
+
+describe("ゲスト用 Cookie（会員セッションとは別名・別値）", () => {
+  it("buildSessionCookie に別名を渡すと Cookie 名が変わる", () => {
+    const c = buildSessionCookie("gtok", new Date(Date.now() + 60_000), GUEST_NAME);
+    expect(c).toMatch(new RegExp(`^${GUEST_NAME}=gtok;`));
+  });
+
+  it("readGuestSessionToken は会員セッション Cookie を見ない", () => {
+    const req = new Request("https://nqkai.test/", {
+      headers: { cookie: `${NAME}=member; ${GUEST_NAME}=guest` },
+    });
+    expect(readGuestSessionToken(req)).toBe("guest");
+    expect(readSessionToken(req)).toBe("member");
   });
 });

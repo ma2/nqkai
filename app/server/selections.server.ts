@@ -3,21 +3,34 @@ import type { SelectionKind } from "~/lib/constants";
 import { newId } from "~/lib/id";
 import type { Db } from "./db/client.server";
 import { type Kukai, selections, submissions } from "./db/schema";
-import { KukaiError } from "./kukai.server";
+import { type Actor, KukaiError } from "./kukai.server";
 
 function limitFor(k: Kukai, kind: SelectionKind): number {
   return kind === "special" ? k.specialCount : kind === "regular" ? k.regularCount : k.reverseCount;
 }
 
+function selectedBy(actor: Actor) {
+  return actor.kind === "user"
+    ? eq(selections.selectorUserId, actor.id)
+    : eq(selections.selectorGuestId, actor.id);
+}
+
+function isOwnSubmission(
+  actor: Actor,
+  s: { authorUserId: string | null; authorGuestId: string | null },
+) {
+  return actor.kind === "user" ? s.authorUserId === actor.id : s.authorGuestId === actor.id;
+}
+
 export async function listMySelections(
   db: Db,
   kukaiId: string,
-  userId: string,
+  actor: Actor,
 ): Promise<Record<string, SelectionKind>> {
   const rows = await db
     .select({ submissionId: selections.submissionId, kind: selections.kind })
     .from(selections)
-    .where(and(eq(selections.kukaiId, kukaiId), eq(selections.selectorUserId, userId)))
+    .where(and(eq(selections.kukaiId, kukaiId), selectedBy(actor)))
     .all();
   return Object.fromEntries(rows.map((r) => [r.submissionId, r.kind]));
 }
@@ -25,29 +38,33 @@ export async function listMySelections(
 export async function setSelection(
   db: Db,
   k: Kukai,
-  userId: string,
+  actor: Actor,
   submissionId: string,
   kind: SelectionKind,
 ) {
   if (k.phase !== "selection") throw new KukaiError("いまは選句期間ではありません");
 
   const s = await db
-    .select({ authorUserId: submissions.authorUserId, isHidden: submissions.isHidden })
+    .select({
+      authorUserId: submissions.authorUserId,
+      authorGuestId: submissions.authorGuestId,
+      isHidden: submissions.isHidden,
+    })
     .from(submissions)
     .where(and(eq(submissions.id, submissionId), eq(submissions.kukaiId, k.id)))
     .get();
   if (!s || s.isHidden) throw new KukaiError("対象の句が見つかりません");
-  if (s.authorUserId === userId) throw new KukaiError("自分の句は選べません");
+  if (isOwnSubmission(actor, s)) throw new KukaiError("自分の句は選べません");
 
   const current = await db
     .select()
     .from(selections)
-    .where(and(eq(selections.submissionId, submissionId), eq(selections.selectorUserId, userId)))
+    .where(and(eq(selections.submissionId, submissionId), selectedBy(actor)))
     .get();
   if (current?.kind === kind) return;
 
   // 種別ごとの上限（変更対象の1件は除いて数える）
-  const mine = await listMySelections(db, k.id, userId);
+  const mine = await listMySelections(db, k.id, actor);
   const usedOfKind = Object.entries(mine).filter(
     ([sid, ki]) => ki === kind && sid !== submissionId,
   ).length;
@@ -62,15 +79,16 @@ export async function setSelection(
       id: newId(),
       kukaiId: k.id,
       submissionId,
-      selectorUserId: userId,
+      selectorUserId: actor.kind === "user" ? actor.id : null,
+      selectorGuestId: actor.kind === "guest" ? actor.id : null,
       kind,
     });
   }
 }
 
-export async function clearSelection(db: Db, k: Kukai, userId: string, submissionId: string) {
+export async function clearSelection(db: Db, k: Kukai, actor: Actor, submissionId: string) {
   if (k.phase !== "selection") throw new KukaiError("いまは選句期間ではありません");
   await db
     .delete(selections)
-    .where(and(eq(selections.submissionId, submissionId), eq(selections.selectorUserId, userId)));
+    .where(and(eq(selections.submissionId, submissionId), selectedBy(actor)));
 }

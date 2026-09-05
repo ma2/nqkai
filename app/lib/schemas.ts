@@ -121,6 +121,24 @@ export const commentSchema = z.object({
   body: z.string().trim().min(1, "コメントを入力してください").max(1000),
 });
 
+/** ゲスト参加（`/guest?code=`） */
+export const guestJoinSchema = z.object({
+  code: z.string().trim().min(1, "コードを入力してください").max(64),
+});
+
+/** ゲストコードの発行（主催者）。使用上限は空欄なら無制限 */
+export const guestCodeIssueSchema = z.object({
+  maxUses: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? Number(v) : null))
+    .refine(
+      (n) => n === null || (Number.isInteger(n) && n >= 1 && n <= 1000),
+      "使用上限は1〜1000の整数で入力してください",
+    ),
+});
+
 /** 復旧コードでの再登録開始（未認証） */
 export const recoveryRedeemStartSchema = z.object({
   email: emailSchema,
