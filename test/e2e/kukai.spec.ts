@@ -165,3 +165,102 @@ test("句会の1サイクル：作成→投句→選句→結果→作者公開"
   await aCtx.close();
   await bCtx.close();
 });
+
+test("ゲスト参加：コード発行→参加→投句→結果に連番表示名", async ({ browser }) => {
+  const s = Date.now();
+  const aCtx = await browser.newContext();
+  const a = await aCtx.newPage();
+  await addAuthenticator(aCtx, a);
+  await register(a, `guest-a-${s}@example.com`, "主宰");
+
+  await a.goto("/orgs/new");
+  await a.getByLabel("結社名").fill(`ゲスト結社 ${s}`);
+  await a.getByRole("button", { name: "作成" }).click();
+  await expect(a).toHaveURL(/\/orgs\/[0-9a-f-]{36}$/);
+  const orgUrl = a.url();
+
+  // ゲスト参加を許可した句会を作成
+  await a.goto(`${orgUrl}/kukai/new`);
+  await a.getByLabel("句会名").fill(`ゲスト例会 ${s}`);
+  await a.getByLabel("兼題（お題）").fill("冬");
+  await a.getByLabel("一人あたり投句数").fill("1");
+  await a.getByLabel("特選の数").fill("1");
+  await a.getByLabel("並選の数").fill("1");
+  await a.getByLabel("逆選の数").fill("0");
+  await a.getByLabel("ゲスト参加を許可").check();
+  await a.getByLabel("投句", { exact: true }).check();
+  await a.getByLabel("選句", { exact: true }).check();
+  await Promise.all([
+    a.waitForURL(/\/kukai\/[0-9a-f-]{36}$/),
+    a.getByRole("button", { name: "作成（準備中フェーズ）" }).click(),
+  ]);
+  const kukaiUrl = a.url();
+
+  // 準備中 → 受付開始 → 投句期間
+  await advance(a, 2);
+  await expect(a.getByText("現在：投句期間")).toBeVisible();
+
+  // 主催者がゲストコードを発行し、参加リンクを取得
+  await a.getByText("ゲスト参加", { exact: true }).click();
+  await a.getByRole("button", { name: "コードを発行" }).click();
+  await expect(a.getByText("ゲストコードを発行しました")).toBeVisible();
+  const link = await a.locator("span", { hasText: "/guest?code=" }).first().textContent();
+  expect(link).toContain("/guest?code=");
+
+  // ゲスト（未登録ブラウザ）が参加
+  const gCtx = await browser.newContext();
+  const g = await gCtx.newPage();
+  await g.goto(link!);
+  await g.getByRole("button", { name: "参加する" }).click();
+  await expect(g).toHaveURL(kukaiUrl);
+  await expect(g.getByText("ゲスト参加者として表示しています：ゲスト1")).toBeVisible();
+
+  // ゲストが投句
+  await g.getByRole("link", { name: /投句する/ }).click();
+  await g.getByPlaceholder("一句").fill("枯野ゆく ゲストの句");
+  await g.getByRole("button", { name: "投句" }).click();
+  await expect(g.getByText("保存しました")).toBeVisible();
+
+  // 主宰も投句
+  await a.goto(kukaiUrl);
+  await a.getByRole("link", { name: /投句する/ }).click();
+  await a.getByPlaceholder("一句").fill("冬ざれや 主宰の句");
+  await a.getByRole("button", { name: "投句" }).click();
+  await expect(a.getByText("保存しました")).toBeVisible();
+
+  // 投句締切 → 選句期間：ゲストが主宰の句を特選
+  await a.goto(kukaiUrl);
+  await advance(a, 2);
+  await expect(a.getByText("現在：選句期間")).toBeVisible();
+  await g.goto(kukaiUrl);
+  await g.getByRole("link", { name: "選句する" }).click();
+  await expect(g.getByText("冬ざれや 主宰の句")).toBeVisible();
+  await expect(g.getByText("枯野ゆく ゲストの句")).toHaveCount(0);
+  await g.getByRole("button", { name: "特選" }).first().click();
+  await expect(g.getByText("選句を保存しました")).toBeVisible();
+
+  // 選句締切 → 結果発表 → 作者公開
+  await a.goto(kukaiUrl);
+  await advance(a, 2);
+  await expect(a.getByText("現在：結果発表")).toBeVisible();
+  await a.getByRole("button", { name: "作者を公開する" }).click();
+  await expect(a.getByText("作者を公開しました")).toBeVisible();
+  await a.getByRole("link", { name: "結果・講評" }).click();
+  await expect(a.getByText("枯野ゆく ゲストの句")).toBeVisible();
+  await expect(a.getByText("作者：ゲスト1")).toBeVisible();
+
+  // ゲストは会員向けダッシュボードにアクセスできない
+  await g.goto("/");
+  await expect(g).toHaveURL(/\/login/);
+
+  // 2人目のゲストは「ゲスト2」
+  const g2Ctx = await browser.newContext();
+  const g2 = await g2Ctx.newPage();
+  await g2.goto(link!);
+  await g2.getByRole("button", { name: "参加する" }).click();
+  await expect(g2.getByText("ゲスト参加者として表示しています：ゲスト2")).toBeVisible();
+
+  await aCtx.close();
+  await gCtx.close();
+  await g2Ctx.close();
+});

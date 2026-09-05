@@ -214,8 +214,6 @@ export const accountRecoveryCodes = sqliteTable(
 );
 
 // ---- フェーズ3：句会 --------------------------------------------------
-// ゲスト（guest_codes / guest_participants）はフェーズ4で追加。
-// author_guest_id / selector_guest_id 列は今は用意だけして未使用（FK なし）。
 
 export const kukai = sqliteTable(
   "kukai",
@@ -283,6 +281,59 @@ export const kukaiPhaseEvents = sqliteTable(
   (t) => [index("kukai_phase_events_kukai_idx").on(t.kukaiId)],
 );
 
+export const guestCodes = sqliteTable(
+  "guest_codes",
+  {
+    id: text().primaryKey(),
+    kukaiId: text()
+      .notNull()
+      .references(() => kukai.id, { onDelete: "cascade" }),
+    /** 参加用コード（推測困難なトークン。/guest?code= に使う） */
+    code: text().notNull().unique(),
+    /** 使用上限。NULL は無制限 */
+    maxUses: integer(),
+    usedCount: integer().notNull().default(0),
+    /** 発行時刻 + 3ヶ月固定 */
+    expiresAt: integer({ mode: "timestamp_ms" }).notNull(),
+    createdBy: text()
+      .notNull()
+      .references(() => users.id),
+    createdAt,
+    revokedAt: integer({ mode: "timestamp_ms" }),
+  },
+  (t) => [index("guest_codes_kukai_idx").on(t.kukaiId)],
+);
+
+export const guestParticipants = sqliteTable(
+  "guest_participants",
+  {
+    id: text().primaryKey(),
+    /** 参加者が属するゲストセッション（ブラウザ）。1セッションが複数句会の行を持てる */
+    sessionId: text()
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    kukaiId: text()
+      .notNull()
+      .references(() => kukai.id, { onDelete: "cascade" }),
+    guestCodeId: text()
+      .notNull()
+      .references(() => guestCodes.id, { onDelete: "cascade" }),
+    /** 「ゲスト1」「ゲスト2」…（句会内連番） */
+    displayName: text().notNull(),
+    // 参加時点の権限スナップショット（句会の guest_can_* の複製）
+    canSubmit: integer({ mode: "boolean" }).notNull().default(false),
+    canSelect: integer({ mode: "boolean" }).notNull().default(false),
+    canComment: integer({ mode: "boolean" }).notNull().default(false),
+    createdAt,
+    lastSeenAt: integer({ mode: "timestamp_ms" }),
+  },
+  (t) => [
+    uniqueIndex("guest_participants_kukai_display_uq").on(t.kukaiId, t.displayName),
+    uniqueIndex("guest_participants_session_kukai_uq").on(t.sessionId, t.kukaiId),
+    index("guest_participants_session_idx").on(t.sessionId),
+  ],
+);
+
 export const submissions = sqliteTable(
   "submissions",
   {
@@ -291,8 +342,8 @@ export const submissions = sqliteTable(
       .notNull()
       .references(() => kukai.id, { onDelete: "cascade" }),
     authorUserId: text().references(() => users.id, { onDelete: "cascade" }),
-    /** フェーズ4のゲスト用（今は常に null、FK なし） */
-    authorGuestId: text(),
+    /** ゲストが作者の場合。author_user_id とはどちらか一方のみ非 NULL（アプリ層で検証） */
+    authorGuestId: text().references(() => guestParticipants.id, { onDelete: "cascade" }),
     content: text().notNull(),
     /** 選句表示のランダム順（投句時に乱数割当、投句締切時に再シャッフル） */
     sortKey: text().notNull(),
@@ -316,7 +367,7 @@ export const selections = sqliteTable(
       .notNull()
       .references(() => submissions.id, { onDelete: "cascade" }),
     selectorUserId: text().references(() => users.id, { onDelete: "cascade" }),
-    selectorGuestId: text(),
+    selectorGuestId: text().references(() => guestParticipants.id, { onDelete: "cascade" }),
     kind: text({ enum: ["special", "regular", "reverse"] }).notNull(),
     createdAt,
   },
@@ -339,7 +390,7 @@ export const comments = sqliteTable(
       .notNull()
       .references(() => submissions.id, { onDelete: "cascade" }),
     authorUserId: text().references(() => users.id, { onDelete: "cascade" }),
-    authorGuestId: text(),
+    authorGuestId: text().references(() => guestParticipants.id, { onDelete: "cascade" }),
     body: text().notNull(),
     createdAt,
     updatedAt,
@@ -359,6 +410,8 @@ export type OrganizationJoinRequest = typeof organizationJoinRequests.$inferSele
 export type RecoveryRequest = typeof recoveryRequests.$inferSelect;
 export type AccountRecoveryCode = typeof accountRecoveryCodes.$inferSelect;
 export type Kukai = typeof kukai.$inferSelect;
+export type GuestCode = typeof guestCodes.$inferSelect;
+export type GuestParticipant = typeof guestParticipants.$inferSelect;
 export type Submission = typeof submissions.$inferSelect;
 export type Selection = typeof selections.$inferSelect;
 export type SelectionKind = Selection["kind"];

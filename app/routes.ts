@@ -18,6 +18,9 @@ export default [
   // 個人の公開句集
   route("u/:publicId", "routes/u.$publicId.tsx"),
 
+  // ゲスト参加
+  route("guest", "routes/guest.tsx"),
+
   // 句会
   route("kukai", "routes/kukai._index.tsx"),
   route("kukai/:kukaiId", "routes/kukai.$kukaiId.tsx"),

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { SelectionKind } from "~/lib/constants";
 import type { Db } from "./db/client.server";
-import { type Kukai, selections, users } from "./db/schema";
+import { guestParticipants, type Kukai, selections, users } from "./db/schema";
 import { listVisibleSubmissions } from "./submissions.server";
 
 export interface ResultRow {
@@ -90,15 +90,17 @@ export async function computeResults(db: Db, k: Kukai): Promise<ResultRow[]> {
       submissionId: selections.submissionId,
       kind: selections.kind,
       selectorHaigo: users.haigo,
+      selectorGuestName: guestParticipants.displayName,
     })
     .from(selections)
     .leftJoin(users, eq(users.id, selections.selectorUserId))
+    .leftJoin(guestParticipants, eq(guestParticipants.id, selections.selectorGuestId))
     .where(eq(selections.kukaiId, k.id))
     .all();
 
   return rankResults(
     subs.map((s) => ({ id: s.id, content: s.content, authorHaigo: s.authorHaigo })),
-    selRows,
+    selRows.map((r) => ({ ...r, selectorHaigo: r.selectorHaigo ?? r.selectorGuestName })),
     {
       special: k.specialPoints,
       regular: k.regularPoints,

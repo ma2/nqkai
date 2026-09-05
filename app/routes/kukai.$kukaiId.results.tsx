@@ -8,11 +8,11 @@ import {
   type SelectionKind,
 } from "~/lib/constants";
 import { commentSchema } from "~/lib/schemas";
-import { getAuth, requireAuth } from "~/server/auth.server";
+import { getAuth, getGuestAuth } from "~/server/auth.server";
 import { addComment, listComments } from "~/server/comments.server";
 import { getServerContext } from "~/server/context.server";
 import { assertTrustedRequest, firstZodError } from "~/server/http.server";
-import { KukaiError, loadKukaiContext } from "~/server/kukai.server";
+import { actorFrom, canAct, KukaiError, loadKukaiContext } from "~/server/kukai.server";
 import { computeResults } from "~/server/results.server";
 import type { Route } from "./+types/kukai.$kukaiId.results";
 
@@ -21,19 +21,19 @@ export const meta: Route.MetaFunction = () => [{ title: "結果 — nQkai" }];
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   const { db } = getServerContext(context);
   const auth = await getAuth(db, request);
+  const guestAuth = auth ? null : await getGuestAuth(db, request);
   const ctx = await loadKukaiContext(
     db,
     params.kukaiId,
     auth?.user.id ?? null,
     auth?.user.isSystemAdmin ?? false,
+    guestAuth?.sessionId ?? null,
   );
   const k = ctx.kukai;
   if (!isAtOrAfter(k.phase, "result")) throw redirect(`/kukai/${k.id}`);
 
-  const [rows, comments] = await Promise.all([
-    computeResults(db, k),
-    listComments(db, k, auth?.user.id ?? null),
-  ]);
+  const actor = actorFrom(auth?.user.id ?? null, ctx);
+  const [rows, comments] = await Promise.all([computeResults(db, k), listComments(db, k, actor)]);
 
   return {
     kukaiId: k.id,
@@ -41,7 +41,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     theme: k.theme,
     phase: k.phase,
     authorsRevealed: k.authorsRevealedAt != null,
-    canComment: ctx.canParticipate && k.phase === "commenting",
+    canComment: canAct(ctx, "comment") && k.phase === "commenting",
     canExport: ctx.canManageDeletion,
     rows,
     comments,
@@ -51,9 +51,18 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 export async function action({ request, params, context }: Route.ActionArgs) {
   assertTrustedRequest(request);
   const { db } = getServerContext(context);
-  const auth = await requireAuth(db, request);
-  const ctx = await loadKukaiContext(db, params.kukaiId, auth.user.id, auth.user.isSystemAdmin);
-  if (!ctx.canParticipate) throw new Response(null, { status: 403 });
+  const auth = await getAuth(db, request);
+  const guestAuth = auth ? null : await getGuestAuth(db, request);
+  if (!auth && !guestAuth) throw new Response(null, { status: 401 });
+  const ctx = await loadKukaiContext(
+    db,
+    params.kukaiId,
+    auth?.user.id ?? null,
+    auth?.user.isSystemAdmin ?? false,
+    guestAuth?.sessionId ?? null,
+  );
+  const actor = actorFrom(auth?.user.id ?? null, ctx);
+  if (!actor || !canAct(ctx, "comment")) throw new Response(null, { status: 403 });
 
   const form = await request.formData();
   const parsed = commentSchema.safeParse({
@@ -63,7 +72,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   if (!parsed.success) return data({ error: firstZodError(parsed.error) }, { status: 422 });
 
   try {
-    await addComment(db, ctx.kukai, auth.user.id, parsed.data.submissionId, parsed.data.body);
+    await addComment(db, ctx.kukai, actor, parsed.data.submissionId, parsed.data.body);
     return data({ ok: "コメントを投稿しました" });
   } catch (e) {
     if (e instanceof KukaiError) return data({ error: e.message }, { status: 409 });

@@ -2,13 +2,19 @@ import { and, asc, eq } from "drizzle-orm";
 import { isAtOrAfter } from "~/lib/constants";
 import { newId } from "~/lib/id";
 import type { Db } from "./db/client.server";
-import { comments, type Kukai, users } from "./db/schema";
-import { KukaiError } from "./kukai.server";
+import { comments, guestParticipants, type Kukai, users } from "./db/schema";
+import { type Actor, KukaiError } from "./kukai.server";
+
+function authoredBy(actor: Actor) {
+  return actor.kind === "user"
+    ? eq(comments.authorUserId, actor.id)
+    : eq(comments.authorGuestId, actor.id);
+}
 
 export async function addComment(
   db: Db,
   k: Kukai,
-  userId: string,
+  actor: Actor,
   submissionId: string,
   body: string,
 ) {
@@ -19,16 +25,17 @@ export async function addComment(
     id: newId(),
     kukaiId: k.id,
     submissionId,
-    authorUserId: userId,
+    authorUserId: actor.kind === "user" ? actor.id : null,
+    authorGuestId: actor.kind === "guest" ? actor.id : null,
     body,
   });
 }
 
-export async function deleteOwnComment(db: Db, k: Kukai, userId: string, commentId: string) {
+export async function deleteOwnComment(db: Db, k: Kukai, actor: Actor, commentId: string) {
   const c = await db
     .select()
     .from(comments)
-    .where(and(eq(comments.id, commentId), eq(comments.authorUserId, userId)))
+    .where(and(eq(comments.id, commentId), authoredBy(actor)))
     .get();
   if (!c || c.kukaiId !== k.id) throw new KukaiError("対象のコメントが見つかりません");
   await db.delete(comments).where(eq(comments.id, commentId));
@@ -42,7 +49,7 @@ export async function deleteOwnComment(db: Db, k: Kukai, userId: string, comment
 export async function listComments(
   db: Db,
   k: Kukai,
-  viewerUserId: string | null,
+  viewer: Actor | null,
 ): Promise<Record<string, { id: string; body: string; haigo: string | null; mine: boolean }[]>> {
   const revealed = isAtOrAfter(k.phase, "result");
 
@@ -52,10 +59,13 @@ export async function listComments(
       submissionId: comments.submissionId,
       body: comments.body,
       authorUserId: comments.authorUserId,
+      authorGuestId: comments.authorGuestId,
       haigo: users.haigo,
+      guestName: guestParticipants.displayName,
     })
     .from(comments)
     .leftJoin(users, eq(users.id, comments.authorUserId))
+    .leftJoin(guestParticipants, eq(guestParticipants.id, comments.authorGuestId))
     .where(eq(comments.kukaiId, k.id))
     .orderBy(asc(comments.createdAt))
     .all();
@@ -63,7 +73,9 @@ export async function listComments(
   const out: Record<string, { id: string; body: string; haigo: string | null; mine: boolean }[]> =
     {};
   for (const r of rows) {
-    const mine = viewerUserId != null && r.authorUserId === viewerUserId;
+    const mine =
+      viewer != null &&
+      (viewer.kind === "user" ? r.authorUserId === viewer.id : r.authorGuestId === viewer.id);
     if (!revealed && !mine) continue;
     let list = out[r.submissionId];
     if (!list) {
@@ -73,7 +85,7 @@ export async function listComments(
     list.push({
       id: r.id,
       body: r.body,
-      haigo: revealed || mine ? r.haigo : null,
+      haigo: revealed || mine ? (r.haigo ?? r.guestName) : null,
       mine,
     });
   }
