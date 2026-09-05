@@ -129,6 +129,25 @@ test("句会の1サイクル：作成→投句→選句→結果→作者公開"
     b.getByText(`「一月例会 ${s}」のフェーズが「投句期間」から「投句締切」に変わりました`),
   ).toBeVisible();
 
+  // 個人の公開句集（作者公開後、句が載る）— フェーズ4
+  await b.goto("/settings");
+  const publicHref = await b.getByRole("link", { name: /^\/u\// }).getAttribute("href");
+  await b.goto(publicHref ?? "/");
+  await expect(b.getByRole("heading", { name: "門人 の句" })).toBeVisible();
+  await expect(b.getByText("木枯らし 門人の句")).toBeVisible();
+
+  // 句会エクスポート（主催者・テキスト / CSV）— フェーズ4
+  const kId = kukaiUrl.split("/").pop();
+  const txt = await a.request.get(`/api/kukai/${kId}/export?format=text`);
+  expect(txt.ok()).toBeTruthy();
+  expect(await txt.text()).toContain("冬の月 主宰の句");
+  const csv = await a.request.get(`/api/kukai/${kId}/export?format=csv`);
+  expect(csv.headers()["content-type"]).toContain("text/csv");
+  expect(await csv.text()).toContain("順位,得点,句,作者,特選,並選,逆選,選者,講評");
+  // 非管理者（B）はエクスポート不可
+  const denied = await b.request.get(`/api/kukai/${kId}/export?format=text`);
+  expect(denied.status()).toBe(403);
+
   // 講評期間 → 講評締切 → 終了
   await a.goto(kukaiUrl);
   await advance(a, 3);

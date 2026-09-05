@@ -15,6 +15,9 @@ export default [
   route("orgs/:orgId/admin", "routes/orgs.$orgId.admin.tsx"),
   route("orgs/:orgId/kukai/new", "routes/orgs.$orgId.kukai.new.tsx"),
 
+  // 個人の公開句集
+  route("u/:publicId", "routes/u.$publicId.tsx"),
+
   // 句会
   route("kukai", "routes/kukai._index.tsx"),
   route("kukai/:kukaiId", "routes/kukai.$kukaiId.tsx"),
@@ -37,5 +40,7 @@ export default [
     route("avatars/:userId", "routes/api.avatars.$userId.ts"),
     route("orgs/:orgId/image", "routes/api.orgs.$orgId.image.ts"),
     route("kukai/:kukaiId/state", "routes/api.kukai.$kukaiId.state.ts"),
+    route("kukai/:kukaiId/export", "routes/api.kukai.$kukaiId.export.ts"),
+    route("u/:publicId/haiku.txt", "routes/api.u.$publicId.haiku-txt.ts"),
   ]),
 ] satisfies RouteConfig;
