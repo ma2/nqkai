@@ -215,6 +215,11 @@ test("ゲスト参加：コード発行→参加→投句→結果に連番表�
   await expect(g).toHaveURL(kukaiUrl);
   await expect(g.getByText("ゲスト参加者として表示しています：ゲスト1")).toBeVisible();
 
+  // ポーリング用の状態エンドポイントもゲストで解決できる（フェーズ変化時に 404 で落ちない）
+  const kId = kukaiUrl.split("/").pop();
+  const st = await g.request.get(`/api/kukai/${kId}/state`);
+  expect(st.ok()).toBeTruthy();
+
   // ゲストが投句
   await g.getByRole("link", { name: /投句する/ }).click();
   await g.getByPlaceholder("一句").fill("枯野ゆく ゲストの句");
