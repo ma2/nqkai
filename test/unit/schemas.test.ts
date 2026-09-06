@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   commentSchema,
   emailSchema,
+  guestCodeIssueSchema,
+  guestJoinSchema,
   haigoSchema,
   kukaiSettingsSchema,
   selectionSchema,
@@ -93,5 +95,29 @@ describe("kukaiSettingsSchema", () => {
 
   it("visibility は public / private のみ", () => {
     expect(kukaiSettingsSchema.safeParse({ ...base, visibility: "secret" }).success).toBe(false);
+  });
+});
+
+describe("guestJoinSchema", () => {
+  it("前後空白を除去する", () => {
+    expect(guestJoinSchema.parse({ code: "  abc123  " }).code).toBe("abc123");
+  });
+  it("空文字は弾く", () => {
+    expect(guestJoinSchema.safeParse({ code: "" }).success).toBe(false);
+  });
+});
+
+describe("guestCodeIssueSchema", () => {
+  it("空欄は無制限（null）", () => {
+    expect(guestCodeIssueSchema.parse({ maxUses: "" }).maxUses).toBeNull();
+    expect(guestCodeIssueSchema.parse({}).maxUses).toBeNull();
+  });
+  it("1〜1000の整数は通す", () => {
+    expect(guestCodeIssueSchema.parse({ maxUses: "10" }).maxUses).toBe(10);
+  });
+  it("範囲外・非整数は弾く", () => {
+    expect(guestCodeIssueSchema.safeParse({ maxUses: "0" }).success).toBe(false);
+    expect(guestCodeIssueSchema.safeParse({ maxUses: "1001" }).success).toBe(false);
+    expect(guestCodeIssueSchema.safeParse({ maxUses: "1.5" }).success).toBe(false);
   });
 });

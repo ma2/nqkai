@@ -6,10 +6,13 @@ import {
   type OrgRole,
   phaseIndex,
 } from "~/lib/constants";
+import { isGuestCodeStillValid } from "~/lib/guest";
 import { newId } from "~/lib/id";
 import type { KukaiSettingsInput } from "~/lib/schemas";
 import type { Db } from "./db/client.server";
 import {
+  guestCodes,
+  guestParticipants,
   type Kukai,
   kukai,
   kukaiPhaseEvents,
@@ -24,6 +27,17 @@ import { getOrgMemberUserIds } from "./orgs.server";
 
 export class KukaiError extends Error {}
 
+/** 投句・選句・コメントの行為者。会員かゲスト参加者かのどちらか。 */
+export type Actor = { kind: "user"; id: string } | { kind: "guest"; id: string };
+
+export interface GuestParticipantInfo {
+  id: string;
+  displayName: string;
+  canSubmit: boolean;
+  canSelect: boolean;
+  canComment: boolean;
+}
+
 export interface KukaiContext {
   kukai: Kukai;
   organization: Organization;
@@ -32,12 +46,14 @@ export interface KukaiContext {
   isSystemAdmin: boolean;
   /** 閲覧可能か */
   canView: boolean;
-  /** フェーズ制御・設定変更・句の非表示（主催者 or システム管理者） */
+  /** フェーズ制御・設定変更・句の非表示・ゲストコード発行（主催者 or システム管理者） */
   canManage: boolean;
   /** 論理削除・復活（上記 + 結社管理者・副管理者） */
   canManageDeletion: boolean;
   /** 投句・選句・コメントの対象になれるか（結社メンバー） */
   canParticipate: boolean;
+  /** この句会に参加しているゲスト（未参加・コード失効/期限切れなら null） */
+  guest: GuestParticipantInfo | null;
 }
 
 export async function loadKukaiContext(
@@ -45,6 +61,7 @@ export async function loadKukaiContext(
   kukaiId: string,
   userId: string | null,
   isSystemAdmin: boolean,
+  guestSessionId: string | null = null,
 ): Promise<KukaiContext> {
   const row = await db
     .select({ k: kukai, o: organizations })
@@ -69,6 +86,38 @@ export async function loadKukaiContext(
     orgRole = m?.role ?? null;
   }
 
+  let guest: GuestParticipantInfo | null = null;
+  if (guestSessionId) {
+    const g = await db
+      .select({
+        id: guestParticipants.id,
+        displayName: guestParticipants.displayName,
+        canSubmit: guestParticipants.canSubmit,
+        canSelect: guestParticipants.canSelect,
+        canComment: guestParticipants.canComment,
+        revokedAt: guestCodes.revokedAt,
+        expiresAt: guestCodes.expiresAt,
+      })
+      .from(guestParticipants)
+      .innerJoin(guestCodes, eq(guestCodes.id, guestParticipants.guestCodeId))
+      .where(
+        and(
+          eq(guestParticipants.sessionId, guestSessionId),
+          eq(guestParticipants.kukaiId, kukaiId),
+        ),
+      )
+      .get();
+    if (g && isGuestCodeStillValid(g)) {
+      guest = {
+        id: g.id,
+        displayName: g.displayName,
+        canSubmit: g.canSubmit,
+        canSelect: g.canSelect,
+        canComment: g.canComment,
+      };
+    }
+  }
+
   const isOrganizer = userId != null && row.k.organizerId === userId;
   const canManage = isOrganizer || isSystemAdmin;
   const canManageDeletion = canManage || orgRole === "admin" || orgRole === "deputy_admin";
@@ -77,7 +126,11 @@ export async function loadKukaiContext(
   const publicClosed = row.k.visibility === "public" && row.k.phase === "closed";
   const canView =
     (orgOpen || isSystemAdmin) &&
-    (orgRole != null || isOrganizer || isSystemAdmin || (orgOpen && publicClosed)) &&
+    (orgRole != null ||
+      isOrganizer ||
+      isSystemAdmin ||
+      guest != null ||
+      (orgOpen && publicClosed)) &&
     (row.k.deletedAt == null || canManageDeletion);
 
   if (!canView) throw new Response("句会が見つかりません", { status: 404 });
@@ -92,11 +145,28 @@ export async function loadKukaiContext(
     canManage,
     canManageDeletion,
     canParticipate: orgRole != null && row.o.status === "open" && row.k.deletedAt == null,
+    guest,
   };
 }
 
 export function assertManage(ctx: KukaiContext): void {
   if (!ctx.canManage) throw new Response("主催者のみ可能な操作です", { status: 403 });
+}
+
+/** ログイン済みユーザー ID とゲスト参加情報から、投句・選句・コメントの行為者を組み立てる。 */
+export function actorFrom(userId: string | null, ctx: KukaiContext): Actor | null {
+  if (userId) return { kind: "user", id: userId };
+  if (ctx.guest) return { kind: "guest", id: ctx.guest.id };
+  return null;
+}
+
+/** 会員（結社メンバー）またはゲスト（許可時のみ）として、その操作を行えるか。 */
+export function canAct(ctx: KukaiContext, action: "submit" | "select" | "comment"): boolean {
+  if (ctx.canParticipate) return true;
+  if (!ctx.guest) return false;
+  if (action === "submit") return ctx.guest.canSubmit;
+  if (action === "select") return ctx.guest.canSelect;
+  return ctx.guest.canComment;
 }
 
 // ---- 作成・設定 ---------------------------------------------------
@@ -106,6 +176,12 @@ export async function createKukai(
   organizationId: string,
   organizerId: string,
   input: KukaiSettingsInput,
+  guestSettings?: {
+    allowGuest: boolean;
+    guestCanSubmit: boolean;
+    guestCanSelect: boolean;
+    guestCanComment: boolean;
+  },
 ): Promise<string> {
   const id = newId();
   await db.insert(kukai).values({
@@ -123,6 +199,10 @@ export async function createKukai(
     regularPoints: input.regularPoints,
     reversePoints: input.reversePoints,
     visibility: input.visibility,
+    allowGuest: guestSettings?.allowGuest ?? false,
+    guestCanSubmit: guestSettings?.guestCanSubmit ?? false,
+    guestCanSelect: guestSettings?.guestCanSelect ?? false,
+    guestCanComment: guestSettings?.guestCanComment ?? false,
     scheduledSubmissionStartAt: input.scheduledSubmissionStartAt,
     scheduledSubmissionEndAt: input.scheduledSubmissionEndAt,
     scheduledSelectionStartAt: input.scheduledSelectionStartAt,
@@ -160,6 +240,23 @@ export async function updateKukaiSettings(db: Db, k: Kukai, input: KukaiSettings
     patch.reversePoints = input.reversePoints;
   }
   await db.update(kukai).set(patch).where(eq(kukai.id, k.id));
+}
+
+/** ゲスト参加の許可・権限（主催者のみ）。 */
+export async function setKukaiGuestSettings(
+  db: Db,
+  k: Kukai,
+  settings: {
+    allowGuest: boolean;
+    guestCanSubmit: boolean;
+    guestCanSelect: boolean;
+    guestCanComment: boolean;
+  },
+) {
+  await db
+    .update(kukai)
+    .set({ ...settings, updatedAt: new Date() })
+    .where(eq(kukai.id, k.id));
 }
 
 // ---- フェーズ遷移 -----------------------------------------------

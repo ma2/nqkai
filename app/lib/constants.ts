@@ -1,8 +1,14 @@
 /** セッション Cookie 名（__Host- プレフィックスで Secure/Path=/ を強制） */
 export const SESSION_COOKIE_NAME = "__Host-session";
 
+/** ゲストセッション Cookie 名（会員セッションとは別 Cookie） */
+export const GUEST_SESSION_COOKIE_NAME = "__Host-guest-session";
+
 /** セッション有効期限：30日 */
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** ゲストコードの有効期間：発行から3ヶ月固定 */
+export const GUEST_CODE_TTL_MONTHS = 3;
 
 /** 残り期限がこれを下回ったらスライド再発行：7日 */
 export const SESSION_RENEW_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;

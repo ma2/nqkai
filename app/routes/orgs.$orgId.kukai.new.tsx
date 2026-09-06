@@ -32,7 +32,12 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   if (!parsed.success) {
     return data({ error: firstZodError(parsed.error) }, { status: 422 });
   }
-  const id = await createKukai(db, params.orgId, auth.user.id, parsed.data);
+  const id = await createKukai(db, params.orgId, auth.user.id, parsed.data, {
+    allowGuest: form.get("allowGuest") === "1",
+    guestCanSubmit: form.get("guestCanSubmit") === "1",
+    guestCanSelect: form.get("guestCanSelect") === "1",
+    guestCanComment: form.get("guestCanComment") === "1",
+  });
   return redirect(`/kukai/${id}`);
 }
 
@@ -119,6 +124,25 @@ export default function KukaiNew({ loaderData, actionData }: Route.ComponentProp
           <Num name="specialPoints" label="特選の点" def={3} />
           <Num name="regularPoints" label="並選の点" def={1} />
           <Num name="reversePoints" label="逆選の点" def={-1} />
+        </section>
+
+        <section className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" name="allowGuest" value="1" />
+            ゲスト参加を許可
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" name="guestCanSubmit" value="1" />
+            投句
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" name="guestCanSelect" value="1" />
+            選句
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" name="guestCanComment" value="1" />
+            コメント
+          </label>
         </section>
 
         <details className="rounded border border-rule p-3">

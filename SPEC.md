@@ -1061,7 +1061,7 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 - ✅ 集計・順位（同点同順位）・選者内訳・作者公開制御（`authors_revealed_at`、公開まではサーバ側でマスク）`/kukai/:kukaiId/results`
 - ✅ 句の非表示（主催者）、句会の論理削除・復活（主催者 + 結社管理者・副管理者）
 - ✅ テスト：Vitest（フェーズ順序ヘルパ）+ Playwright（作成→フェーズ遷移→投句→締切→選句→結果→作者公開の1サイクル）
-- マイグレーション `0003_kukai_cycle.sql`。**ゲスト（`guest_codes` / `guest_participants`）はフェーズ4で追加**。`submissions` / `selections` / `comments` の `*_guest_id` 列は用意だけして未使用（FK なし）
+- マイグレーション `0003_kukai_cycle.sql`
 - ✅ フェーズ変更通知の文面を「『{句会名}』のフェーズが『{旧}』から『{新}』に変わりました」に（`phase_changed` ペイロードに `kukaiName` / `fromPhase` 追加、`app/lib/notifications.ts`）— issue #11
 - ✅ 句会一覧 `/kukai`（進行中・過去）とヘッダ導線、ダッシュボードのメニュー順を「進行中の句会／過去の句会／所属する結社」に（`listPastKukaiForUser`、`KukaiList` 共用コンポーネント）— issue #13 / #14
 
@@ -1070,7 +1070,9 @@ MVP は **フェーズ3 完了時点**（登録・ログイン、結社の作成
 - ✅ 個人の公開句集 `/u/:publicId`（公開・SSR、縦書き。作者公開済み・非削除の句会の本人の句のみ、句会名・兼題・日付・得点付き）。`listPublicHaiku`
 - ✅ 個人俳句エクスポート `GET /api/u/:publicId/haiku.txt`（テキスト、本人のみ）
 - ✅ 句会エクスポート `GET /api/kukai/:kukaiId/export?format=text|csv`（主催者・結社管理者・副管理者、`result` 以降。CSV は UTF-8 + BOM）。結果画面に導線。整形は `app/lib/export.ts`（純関数、単体テスト付き）
-- ゲストコード発行、ゲスト参加・権限制御、連番表示名、ゲストセッション（`0004_guests.sql`）— 未着手
+- ✅ ゲストコード発行・失効（主催者、`allow_guest` の句会のみ、`/kukai/:kukaiId` の主催者メニュー）。マイグレーション `0004_guests.sql`（`guest_codes` / `guest_participants`）
+- ✅ ゲスト参加 `/guest?code=`（コード確認 → 参加。ゲストセッションは会員とは別 Cookie、`guest_participants.session_id` で句会ごとに紐づく。複数句会へ並行参加可）
+- ✅ ゲスト権限制御（`guest_can_submit` / `_select` / `_comment` のスナップショットで投句・選句・コメントを解禁）、連番表示名「ゲストN」
 - 縦書きの句カード・選句シート（フェーズ3 のデザインパスで対応済み）、句会詳細の縦書き調整
 
 ### フェーズ5：管理

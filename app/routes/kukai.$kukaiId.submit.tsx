@@ -1,11 +1,11 @@
-import { data, Form, Link } from "react-router";
+import { data, Form, Link, redirect } from "react-router";
 import { ActionNote } from "~/components/ui";
 import { KUKAI_PHASE_LABEL } from "~/lib/constants";
 import { submissionSchema } from "~/lib/schemas";
-import { requireAuth } from "~/server/auth.server";
+import { getAuth, getGuestAuth } from "~/server/auth.server";
 import { getServerContext } from "~/server/context.server";
 import { assertTrustedRequest, firstZodError } from "~/server/http.server";
-import { KukaiError, loadKukaiContext } from "~/server/kukai.server";
+import { actorFrom, canAct, KukaiError, loadKukaiContext } from "~/server/kukai.server";
 import {
   addSubmission,
   deleteSubmission,
@@ -18,11 +18,25 @@ export const meta: Route.MetaFunction = () => [{ title: "投句 — nQkai" }];
 
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   const { db } = getServerContext(context);
-  const auth = await requireAuth(db, request);
-  const ctx = await loadKukaiContext(db, params.kukaiId, auth.user.id, auth.user.isSystemAdmin);
-  if (!ctx.canParticipate) throw new Response("この句会には参加できません", { status: 403 });
+  const auth = await getAuth(db, request);
+  const guestAuth = auth ? null : await getGuestAuth(db, request);
+  if (!auth && !guestAuth) {
+    const to = new URL(request.url).pathname;
+    throw redirect(`/login?next=${encodeURIComponent(to)}`);
+  }
+  const ctx = await loadKukaiContext(
+    db,
+    params.kukaiId,
+    auth?.user.id ?? null,
+    auth?.user.isSystemAdmin ?? false,
+    guestAuth?.sessionId ?? null,
+  );
+  const actor = actorFrom(auth?.user.id ?? null, ctx);
+  if (!actor || !canAct(ctx, "submit")) {
+    throw new Response("この句会には参加できません", { status: 403 });
+  }
 
-  const mine = await listMySubmissions(db, ctx.kukai.id, auth.user.id);
+  const mine = await listMySubmissions(db, ctx.kukai.id, actor);
   return {
     kukaiId: ctx.kukai.id,
     name: ctx.kukai.name,
@@ -36,9 +50,18 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 export async function action({ request, params, context }: Route.ActionArgs) {
   assertTrustedRequest(request);
   const { db } = getServerContext(context);
-  const auth = await requireAuth(db, request);
-  const ctx = await loadKukaiContext(db, params.kukaiId, auth.user.id, auth.user.isSystemAdmin);
-  if (!ctx.canParticipate) throw new Response(null, { status: 403 });
+  const auth = await getAuth(db, request);
+  const guestAuth = auth ? null : await getGuestAuth(db, request);
+  if (!auth && !guestAuth) throw new Response(null, { status: 401 });
+  const ctx = await loadKukaiContext(
+    db,
+    params.kukaiId,
+    auth?.user.id ?? null,
+    auth?.user.isSystemAdmin ?? false,
+    guestAuth?.sessionId ?? null,
+  );
+  const actor = actorFrom(auth?.user.id ?? null, ctx);
+  if (!actor || !canAct(ctx, "submit")) throw new Response(null, { status: 403 });
 
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
@@ -48,20 +71,14 @@ export async function action({ request, params, context }: Route.ActionArgs) {
       const parsed = submissionSchema.safeParse({ content: form.get("content") });
       if (!parsed.success) return data({ error: firstZodError(parsed.error) }, { status: 422 });
       if (intent === "add") {
-        await addSubmission(db, ctx.kukai, auth.user.id, parsed.data.content);
+        await addSubmission(db, ctx.kukai, actor, parsed.data.content);
       } else {
-        await updateSubmission(
-          db,
-          ctx.kukai,
-          String(form.get("id")),
-          auth.user.id,
-          parsed.data.content,
-        );
+        await updateSubmission(db, ctx.kukai, String(form.get("id")), actor, parsed.data.content);
       }
       return data({ ok: "保存しました" });
     }
     if (intent === "delete") {
-      await deleteSubmission(db, ctx.kukai, String(form.get("id")), auth.user.id);
+      await deleteSubmission(db, ctx.kukai, String(form.get("id")), actor);
       return data({ ok: "削除しました" });
     }
     return data({ error: "不明な操作です" }, { status: 400 });

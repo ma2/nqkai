@@ -29,6 +29,13 @@
       "when": 1788069797946,
       "tag": "0003_kukai_cycle",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788614820207,
+      "tag": "0004_guests",
+      "breakpoints": true
     }
   ]
 }

@@ -13,7 +13,7 @@ export async function buildKukaiExport(
 ): Promise<KukaiExportData> {
   const [results, comments] = await Promise.all([
     computeResults(db, k),
-    listComments(db, k, viewerUserId),
+    listComments(db, k, { kind: "user", id: viewerUserId }),
   ]);
 
   return {
