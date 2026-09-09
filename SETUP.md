@@ -3,12 +3,12 @@
 ## 環境と URL
 
 - アカウント `e1bfc1ed29f5c1f17e23a9d77a3fad8a`、リージョン APAC
-- workers.dev サブドメインは **`mckoy`**（アカウント共有・変更しない）。環境は Worker 名で区別する。
+- workers.dev サブドメインは **`ma2`**（アカウント共有・他アプリと同じ）。環境は Worker 名で区別する。
 
 | 環境 | Worker 名 | URL | git ブランチ |
 |------|-----------|-----|--------------|
-| staging | `nqkai-staging` | `https://nqkai-staging.mckoy.workers.dev` | `dev` |
-| production | `nqkai-prod` | `https://nqkai-prod.mckoy.workers.dev` | `main` |
+| staging | `nqkai-staging` | `https://nqkai-staging.ma2.workers.dev` | `dev` |
+| production | `nqkai-prod` | `https://nqkai-prod.ma2.workers.dev` | `main` |
 
 ## 状態（リファレンス運用 = ma2 のアカウント）
 

@@ -11,18 +11,18 @@
     "enabled": true
   },
   // 名前付き env はバインディング（vars / d1 / r2 / kv）を継承しないため、各 env に明示的に再宣言する。
-  // アカウントの workers.dev サブドメインは `mckoy`（共有・変更不可）。Worker 名で環境を区別する。
-  //   staging → https://nqkai-staging.mckoy.workers.dev
-  //   prod    → https://nqkai-prod.mckoy.workers.dev
+  // アカウントの workers.dev サブドメインは `ma2`（他アプリと共有）。Worker 名で環境を区別する。
+  //   staging → https://nqkai-staging.ma2.workers.dev
+  //   prod    → https://nqkai-prod.ma2.workers.dev
   // 以下の database_id / KV id / WEBAUTHN_* はリファレンス運用の値（秘密情報ではない）。
   // 別アカウントで動かす場合は SETUP.md「6. フォークして自分で運用する」を参照。
   "env": {
     "staging": {
       "name": "nqkai-staging",
       "vars": {
-        "WEBAUTHN_RP_ID": "nqkai-staging.mckoy.workers.dev",
+        "WEBAUTHN_RP_ID": "nqkai-staging.ma2.workers.dev",
         "WEBAUTHN_RP_NAME": "nQkai（staging）",
-        "WEBAUTHN_ORIGIN": "https://nqkai-staging.mckoy.workers.dev"
+        "WEBAUTHN_ORIGIN": "https://nqkai-staging.ma2.workers.dev"
       },
       "d1_databases": [
         {
@@ -48,9 +48,9 @@
     "production": {
       "name": "nqkai-prod",
       "vars": {
-        "WEBAUTHN_RP_ID": "nqkai-prod.mckoy.workers.dev",
+        "WEBAUTHN_RP_ID": "nqkai-prod.ma2.workers.dev",
         "WEBAUTHN_RP_NAME": "nQkai",
-        "WEBAUTHN_ORIGIN": "https://nqkai-prod.mckoy.workers.dev"
+        "WEBAUTHN_ORIGIN": "https://nqkai-prod.ma2.workers.dev"
       },
       "d1_databases": [
         {
